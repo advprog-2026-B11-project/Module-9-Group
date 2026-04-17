@@ -3,6 +3,7 @@ package com.example.bidmart.user.service;
 import com.example.bidmart.user.dto.UpdateProfileRequest;
 import com.example.bidmart.user.dto.UserProfileResponse;
 import com.example.bidmart.user.model.User;
+import com.example.bidmart.user.repository.SessionRepository;
 import com.example.bidmart.user.repository.UserRepository;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -12,9 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final SessionRepository sessionRepository;
 
-    public UserServiceImpl(UserRepository userRepository) {
+    public UserServiceImpl(UserRepository userRepository, SessionRepository sessionRepository) {
         this.userRepository = userRepository;
+        this.sessionRepository = sessionRepository;
     }
 
     @Override
@@ -60,5 +63,15 @@ public class UserServiceImpl implements UserService {
                 .role(user.getRole().name())
                 .isEmailVerified(user.isEmailVerified())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void deleteProfile(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        sessionRepository.deleteAllByUserId(user.getId());
+        userRepository.delete(user);
     }
 }

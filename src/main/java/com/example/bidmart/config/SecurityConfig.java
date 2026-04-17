@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/bids/mocks/**").permitAll()
                 .requestMatchers("/api/bids/**").permitAll()
                 .requestMatchers("/api/orders/**").permitAll()
+                .requestMatchers("/api/notifications/**").permitAll()
 
                 .anyRequest().authenticated()
             )
