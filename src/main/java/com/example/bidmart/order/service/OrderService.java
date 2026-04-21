@@ -1,18 +1,19 @@
 package com.example.bidmart.order.service;
 
+import com.example.bidmart.bidding.exception.ResourceNotFoundException; // Memakai exception yang sudah ada
 import com.example.bidmart.order.model.Order;
 import com.example.bidmart.order.repository.OrderRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class OrderService {
 
-    @Autowired
-    private OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
     public Order createOrderAutomatically(UUID listingId, UUID buyerId) {
         Order newOrder = new Order(listingId, buyerId, "CREATED");
@@ -24,26 +25,25 @@ public class OrderService {
     }
 
     public Order updateOrderStatus(UUID orderId, String newStatus) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Pesanan tidak ditemukan dengan ID: " + orderId));
-
+        Order order = getOrderOrThrow(orderId);
         order.setStatus(newStatus);
         return orderRepository.save(order);
     }
 
     public Order updateTrackingNumber(UUID orderId, String trackingNumber) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Pesanan tidak ditemukan dengan ID: " + orderId));
-
+        Order order = getOrderOrThrow(orderId);
         order.setTrackingNumber(trackingNumber);
         order.setStatus("SHIPPED");
         return orderRepository.save(order);
     }
 
     public void deleteOrder(UUID orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Pesanan tidak ditemukan dengan ID: " + orderId));
-
+        Order order = getOrderOrThrow(orderId);
         orderRepository.delete(order);
+    }
+
+    private Order getOrderOrThrow(UUID orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pesanan tidak ditemukan dengan ID: " + orderId));
     }
 }
