@@ -59,6 +59,7 @@ public class WalletServiceImpl implements WalletService {
         Transaction tx = new Transaction(wallet.getId(), "TOPUP", amount, null);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
+        
         return wallet;
     }
 
@@ -134,7 +135,9 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().add(actualRelease));
         wallet = walletRepository.save(wallet);
 
-        transactionRepository.save(new Transaction(wallet.getId(), "REFUND", actualRelease, refId));
+        Transaction tx = new Transaction(wallet.getId(), "REFUND", actualRelease, refId);
+        tx.setIdempotencyKey(idempotencyKey);
+        transactionRepository.save(tx);
 
         return wallet;
     }
@@ -161,7 +164,9 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceLocked(wallet.getBalanceLocked().subtract(amount));
         wallet = walletRepository.save(wallet);
 
-        transactionRepository.save(new Transaction(wallet.getId(), "PAYMENT", amount, referenceId));
+        Transaction tx = new Transaction(wallet.getId(), "PAYMENT", amount, referenceId);
+        tx.setIdempotencyKey(idempotencyKey);
+        transactionRepository.save(tx);
 
         return wallet;
     }
@@ -188,7 +193,9 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().subtract(amount));
         wallet = walletRepository.save(wallet);
 
-        transactionRepository.save(new Transaction(wallet.getId(), "WITHDRAWAL", amount, null));
+        Transaction tx = new Transaction(wallet.getId(), "WITHDRAWAL", amount, null);
+        tx.setIdempotencyKey(idempotencyKey);
+        transactionRepository.save(tx);
 
         return wallet;
     }
@@ -216,7 +223,9 @@ public class WalletServiceImpl implements WalletService {
         sellerWallet.setBalanceAvailable(sellerWallet.getBalanceAvailable().add(amount));
         sellerWallet = walletRepository.save(sellerWallet);
 
-        transactionRepository.save(new Transaction(sellerWallet.getId(), "INCOME", amount, referenceId));
+        Transaction tx = new Transaction(sellerWallet.getId(), "INCOME", amount, referenceId);
+        tx.setIdempotencyKey(idempotencyKey);
+        transactionRepository.save(tx);
 
         return sellerWallet;
     }
