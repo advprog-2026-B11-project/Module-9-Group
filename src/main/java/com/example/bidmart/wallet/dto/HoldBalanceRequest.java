@@ -11,4 +11,5 @@ import java.util.UUID;
 public class HoldBalanceRequest {
     private BigDecimal amount;
     private UUID listingId;
+    private String idempotencyKey;
 }

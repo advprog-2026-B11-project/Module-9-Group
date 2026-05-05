@@ -60,7 +60,7 @@ public class WalletController {
     ) {
         ensureCurrentUser(userId, authentication);
         UUID authenticatedUserId = resolveCurrentUserId(authentication);
-        Wallet wallet = walletService.topUp(authenticatedUserId, request.getAmount());
+        Wallet wallet = walletService.topUp(authenticatedUserId, request.getAmount(), request.getIdempotencyKey());
 
         if (wallet == null) {
             return ResponseEntity.badRequest().build();
@@ -78,28 +78,28 @@ public class WalletController {
     @PostMapping("/hold")
     public ResponseEntity<Wallet> holdBalance(Authentication authentication, @RequestBody HoldBalanceRequest request) {
         UUID userId = resolveCurrentUserId(authentication);
-        Wallet wallet = walletService.reserveBidFunds(userId, request.getListingId(), request.getAmount());
+        Wallet wallet = walletService.reserveBidFunds(userId, request.getListingId(), request.getAmount(), request.getIdempotencyKey());
         return ResponseEntity.ok(wallet);
     }
 
     @PostMapping("/release")
     public ResponseEntity<Wallet> releaseHold(Authentication authentication, @RequestBody HoldBalanceRequest request) {
         UUID userId = resolveCurrentUserId(authentication);
-        Wallet wallet = walletService.releaseBidFunds(userId, request.getListingId(), request.getAmount());
+        Wallet wallet = walletService.releaseBidFunds(userId, request.getListingId(), request.getAmount(), request.getIdempotencyKey());
         return ResponseEntity.ok(wallet);
     }
 
     @PostMapping("/settle")
     public ResponseEntity<Wallet> settlePayment(Authentication authentication, @RequestBody HoldBalanceRequest request) {
         UUID userId = resolveCurrentUserId(authentication);
-        Wallet wallet = walletService.settlePayment(userId, request.getAmount(), request.getListingId().toString());
+        Wallet wallet = walletService.settlePayment(userId, request.getAmount(), request.getListingId().toString(), request.getIdempotencyKey());
         return ResponseEntity.ok(wallet);
     }
 
     @PostMapping("/withdraw")
     public ResponseEntity<Wallet> withdraw(Authentication authentication, @RequestBody WithdrawRequest request) {
         UUID userId = resolveCurrentUserId(authentication);
-        Wallet wallet = walletService.withdraw(userId, request.getAmount());
+        Wallet wallet = walletService.withdraw(userId, request.getAmount(), request.getIdempotencyKey());
         return ResponseEntity.ok(wallet);
     }
 
@@ -113,7 +113,7 @@ public class WalletController {
     @PostMapping("/confirm-delivery")
     public ResponseEntity<Wallet> confirmDelivery(@RequestBody ConfirmDeliveryRequest request) {
         Wallet wallet = walletService.confirmDelivery(
-            request.getSellerId(), request.getAmount(), request.getListingId().toString());
+            request.getSellerId(), request.getAmount(), request.getListingId().toString(), request.getIdempotencyKey());
         return ResponseEntity.ok(wallet);
     }
 

@@ -9,4 +9,5 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class WithdrawRequest {
     private BigDecimal amount;
+    private String idempotencyKey;
 }

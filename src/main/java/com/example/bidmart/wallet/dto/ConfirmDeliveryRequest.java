@@ -12,4 +12,5 @@ public class ConfirmDeliveryRequest {
     private UUID sellerId;
     private BigDecimal amount;
     private UUID listingId;
+    private String idempotencyKey;
 }

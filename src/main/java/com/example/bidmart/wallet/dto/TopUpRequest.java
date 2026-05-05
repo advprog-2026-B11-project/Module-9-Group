@@ -12,4 +12,5 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class TopUpRequest {
     private BigDecimal amount;
+    private String idempotencyKey;
 }

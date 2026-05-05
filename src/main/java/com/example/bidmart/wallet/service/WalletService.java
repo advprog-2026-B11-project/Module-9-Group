@@ -12,14 +12,20 @@ public interface WalletService {
     List<Wallet> findAll();
     
     Wallet topUp(UUID userId, BigDecimal amount);
+    Wallet topUp(UUID userId, BigDecimal amount, String idempotencyKey);
     Wallet withdraw(UUID userId, BigDecimal amount);
+    Wallet withdraw(UUID userId, BigDecimal amount, String idempotencyKey);
     
     // Bidding
     Wallet reserveBidFunds(UUID buyerId, UUID listingId, BigDecimal reserveTarget);
+    Wallet reserveBidFunds(UUID buyerId, UUID listingId, BigDecimal reserveTarget, String idempotencyKey);
     Wallet releaseBidFunds(UUID buyerId, UUID listingId, BigDecimal releaseAmount);
+    Wallet releaseBidFunds(UUID buyerId, UUID listingId, BigDecimal releaseAmount, String idempotencyKey);
     
     // Settlement & Audit
     Wallet settlePayment(UUID userId, BigDecimal amount, String referenceId);
+    Wallet settlePayment(UUID userId, BigDecimal amount, String referenceId, String idempotencyKey);
     Wallet confirmDelivery(UUID sellerId, BigDecimal amount, String referenceId);
+    Wallet confirmDelivery(UUID sellerId, BigDecimal amount, String referenceId, String idempotencyKey);
     List<Transaction> getTransactionHistory(UUID userId);
 }

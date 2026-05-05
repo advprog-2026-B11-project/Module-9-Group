@@ -11,4 +11,5 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     List<Transaction> findByWalletIdOrderByCreatedAtDesc(UUID walletId);
     Optional<Transaction> findByReferenceIdAndType(String referenceId, String type);
     List<Transaction> findByWalletIdAndReferenceId(UUID walletId, String referenceId);
+    Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 }

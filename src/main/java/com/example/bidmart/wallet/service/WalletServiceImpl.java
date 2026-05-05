@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -39,16 +40,25 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    @Transactional
     public Wallet topUp(UUID userId, BigDecimal amount) {
+        return topUp(userId, amount, UUID.randomUUID().toString());
+    }
+
+    @Override
+    @Transactional
+    public Wallet topUp(UUID userId, BigDecimal amount, String idempotencyKey) {
+        Optional<Wallet> existing = checkIdempotency(idempotencyKey, userId);
+        if (existing.isPresent()) return existing.get();
+
         validateAmount(amount);
 
         Wallet wallet = getWalletByUserId(userId);
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().add(amount));
         wallet = walletRepository.save(wallet);
 
-        transactionRepository.save(new Transaction(wallet.getId(), "TOPUP", amount, null));
-
+        Transaction tx = new Transaction(wallet.getId(), "TOPUP", amount, null);
+        tx.setIdempotencyKey(idempotencyKey);
+        transactionRepository.save(tx);
         return wallet;
     }
 
@@ -58,8 +68,16 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    @Transactional
     public Wallet reserveBidFunds(UUID buyerId, UUID listingId, BigDecimal reserveTarget) {
+        return reserveBidFunds(buyerId, listingId, reserveTarget, UUID.randomUUID().toString());
+    }
+
+    @Override
+    @Transactional
+    public Wallet reserveBidFunds(UUID buyerId, UUID listingId, BigDecimal reserveTarget, String idempotencyKey) {
+        Optional<Wallet> existing = checkIdempotency(idempotencyKey, buyerId);
+        if (existing.isPresent()) return existing.get();
+
         validateAmount(reserveTarget);
 
         Wallet wallet = getWalletByUserId(buyerId);
@@ -82,14 +100,24 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceLocked(wallet.getBalanceLocked().add(additionalLock));
         wallet = walletRepository.save(wallet);
 
-        transactionRepository.save(new Transaction(wallet.getId(), "HOLD", additionalLock, refId));
+        Transaction tx = new Transaction(wallet.getId(), "HOLD", additionalLock, refId);
+        tx.setIdempotencyKey(idempotencyKey);
+        transactionRepository.save(tx);
 
         return wallet;
     }
 
     @Override
-    @Transactional
     public Wallet releaseBidFunds(UUID buyerId, UUID listingId, BigDecimal releaseAmount) {
+        return releaseBidFunds(buyerId, listingId, releaseAmount, UUID.randomUUID().toString());
+    }
+
+    @Override
+    @Transactional
+    public Wallet releaseBidFunds(UUID buyerId, UUID listingId, BigDecimal releaseAmount, String idempotencyKey) {
+        Optional<Wallet> existing = checkIdempotency(idempotencyKey, buyerId);
+        if (existing.isPresent()) return existing.get();
+
         validateAmount(releaseAmount);
 
         Wallet wallet = getWalletByUserId(buyerId);
@@ -112,8 +140,16 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    @Transactional
     public Wallet settlePayment(UUID userId, BigDecimal amount, String referenceId) {
+        return settlePayment(userId, amount, referenceId, UUID.randomUUID().toString());
+    }
+
+    @Override
+    @Transactional
+    public Wallet settlePayment(UUID userId, BigDecimal amount, String referenceId, String idempotencyKey) {
+        Optional<Wallet> existing = checkIdempotency(idempotencyKey, userId);
+        if (existing.isPresent()) return existing.get();
+
         validateAmount(amount);
 
         Wallet wallet = getWalletByUserId(userId);
@@ -131,8 +167,16 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    @Transactional
     public Wallet withdraw(UUID userId, BigDecimal amount) {
+        return withdraw(userId, amount, UUID.randomUUID().toString()); 
+    }
+
+    @Override
+    @Transactional
+    public Wallet withdraw(UUID userId, BigDecimal amount, String idempotencyKey) {
+        Optional<Wallet> existing = checkIdempotency(idempotencyKey, userId);
+        if (existing.isPresent()) return existing.get();
+
         validateAmount(amount);
 
         Wallet wallet = getWalletByUserId(userId);
@@ -156,8 +200,16 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    @Transactional
     public Wallet confirmDelivery(UUID sellerId, BigDecimal amount, String referenceId) {
+        return confirmDelivery(sellerId, amount, referenceId, UUID.randomUUID().toString());
+    }
+
+    @Override
+    @Transactional
+    public Wallet confirmDelivery(UUID sellerId, BigDecimal amount, String referenceId, String idempotencyKey) {
+        Optional<Wallet> existing = checkIdempotency(idempotencyKey, sellerId);
+        if (existing.isPresent()) return existing.get();
+
         validateAmount(amount);
 
         Wallet sellerWallet = getWalletByUserId(sellerId);
@@ -188,5 +240,10 @@ public class WalletServiceImpl implements WalletService {
         }
 
         return held.max(BigDecimal.ZERO);
+    }
+
+    private Optional<Wallet> checkIdempotency(String idempotencyKey, UUID userId) {
+        return transactionRepository.findByIdempotencyKey(idempotencyKey)
+                .map(tx -> getWalletByUserId(userId));
     }
 }
