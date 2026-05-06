@@ -2,6 +2,7 @@ package com.example.bidmart.notification.listener;
 
 import com.example.bidmart.common.event.AuctionWonEvent;
 import com.example.bidmart.common.event.BidPlacedEvent;
+import com.example.bidmart.common.event.OutbidEvent;
 import com.example.bidmart.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -27,5 +28,12 @@ public class NotificationEventListener {
     public void handleNewBid(BidPlacedEvent event) {
         String message = "Penawaran berhasil ditempatkan sebesar Rp " + event.bidAmount();
         notificationService.createNotification(event.buyerId(), "NEW_BID", message);
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleOutbid(OutbidEvent event) {
+        String message = "Anda dikalahkan! Penawaran tertinggi sekarang: Rp " + event.newHighestBid();
+        notificationService.createNotification(event.outbidUserId(), "OUTBID", message);
     }
 }

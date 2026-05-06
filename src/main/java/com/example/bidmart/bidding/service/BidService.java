@@ -2,13 +2,14 @@ package com.example.bidmart.bidding.service;
 
 import com.example.bidmart.bidding.dto.BidResponse;
 import com.example.bidmart.bidding.dto.CreateBidRequest;
-import com.example.bidmart.bidding.event.OutbidEvent;
-import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.ResourceNotFoundException;
+import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
 import com.example.bidmart.bidding.validator.BidRuleValidator;
+import com.example.bidmart.common.event.AuctionExtendedEvent;
 import com.example.bidmart.common.event.BidPlacedEvent;
+import com.example.bidmart.common.event.OutbidEvent;
 import com.example.bidmart.listing.model.Listing;
 import com.example.bidmart.listing.service.ListingService;
 import com.example.bidmart.wallet.service.WalletService;
@@ -48,10 +49,11 @@ public class BidService {
     public BidResponse placeBid(UUID buyerId, CreateBidRequest request) {
         bidRuleValidator.validateRequest(request, buyerId);
 
-        ListingSnapshot listing = listingService.getListingById(request.listingId())
-                .map(this::toSnapshot)
+        Listing listingEntity = listingService.getListingByIdWithLock(request.listingId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Listing tidak ditemukan: " + request.listingId()));
+
+        ListingSnapshot listing = toSnapshot(listingEntity);
 
         Optional<Bid> currentHighestBid = bidRepository
                 .findTopByListingIdOrderByAmountDescCreatedAtAsc(request.listingId());
@@ -84,6 +86,16 @@ public class BidService {
 
         Bid savedBid = bidRepository.save(bid);
 
+        listingEntity.updateHighestBid(savedBid.getBuyerId(), savedBid.getAmount());
+
+        boolean extended = false;
+        if (listingEntity.isWithinAntiSnipingWindow()) {
+            listingEntity.extendAuction();
+            extended = true;
+        }
+
+        listingService.save(listingEntity);
+
         releaseOutbidFunds(currentHighestBid, savedBid)
                 .ifPresent(outbid -> eventPublisher.publishEvent(
                         new OutbidEvent(savedBid.getListingId(), outbid.getBuyerId(), savedBid.getAmount())));
@@ -93,6 +105,11 @@ public class BidService {
                 savedBid.getBuyerId(),
                 savedBid.getAmount()
         ));
+
+        if (extended) {
+            eventPublisher.publishEvent(new AuctionExtendedEvent(
+                    listingEntity.getId(), listingEntity.getEndTime()));
+        }
 
         return BidResponse.from(savedBid);
     }
@@ -139,7 +156,9 @@ public class BidService {
                 listing.getSellerId(),
                 startingPrice,
                 listing.getEndTime(),
-                listing.getStatus()
+                listing.getStatus(),
+                listing.getCurrentHighestBid(),
+                listing.getCurrentHighestBidderId()
         );
     }
 

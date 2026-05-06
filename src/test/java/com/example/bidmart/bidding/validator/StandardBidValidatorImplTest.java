@@ -4,6 +4,7 @@ import com.example.bidmart.bidding.dto.CreateBidRequest;
 import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.service.ListingSnapshot;
+import com.example.bidmart.listing.model.AuctionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,8 +21,6 @@ class StandardBidValidatorImplTest {
 
     private StandardBidValidatorImpl validator;
 
-    // Fixed IDs shared across tests — UUID.randomUUID() called once at class-load time
-    // so tests remain deterministic and isolated from each other.
     private static final UUID LISTING_ID = UUID.randomUUID();
     private static final UUID BUYER_ID   = UUID.randomUUID();
     private static final UUID SELLER_ID  = UUID.randomUUID();
@@ -35,36 +34,32 @@ class StandardBidValidatorImplTest {
     // Shared helpers
     // =========================================================================
 
-    /** A structurally valid, non-proxy bid request. */
     private CreateBidRequest validRequest() {
         return new CreateBidRequest(LISTING_ID, new BigDecimal("100.00"), false, null);
     }
 
-    /** A structurally valid proxy-bid request with the given limits. */
     private CreateBidRequest proxyRequest(BigDecimal amount, BigDecimal proxyMaxLimit) {
         return new CreateBidRequest(LISTING_ID, amount, true, proxyMaxLimit);
     }
 
-    /**
-     * An "open" listing: status=OPEN, endTime 2 hours in the future,
-     * startingPrice=50, buyer != seller.
-     */
+    /** An "open" listing: status=ACTIVE, endTime 2 hours in the future. */
     private ListingSnapshot openListing() {
         return new ListingSnapshot(
                 LISTING_ID,
                 SELLER_ID,
                 new BigDecimal("50.00"),
                 LocalDateTime.now().plusHours(2),
-                "OPEN"
+                AuctionStatus.ACTIVE,
+                null,
+                null
         );
     }
 
-    /** A dummy bid by a different buyer with the given amount. */
     private Bid bidWithAmount(BigDecimal amount) {
         Bid bid = new Bid();
         bid.setId(UUID.randomUUID());
         bid.setListingId(LISTING_ID);
-        bid.setBuyerId(UUID.randomUUID()); // different buyer
+        bid.setBuyerId(UUID.randomUUID());
         bid.setAmount(amount);
         bid.setProxyBid(false);
         return bid;
@@ -76,8 +71,6 @@ class StandardBidValidatorImplTest {
 
     @Nested
     class ValidateRequest {
-
-        // --- null / missing fields ---
 
         @Test
         void nullRequest_throws() {
@@ -101,8 +94,6 @@ class StandardBidValidatorImplTest {
                     .isInstanceOf(BidValidationException.class)
                     .hasMessageContaining("buyerId wajib diisi.");
         }
-
-        // --- amount rules ---
 
         @Test
         void nullAmount_throws() {
@@ -131,8 +122,6 @@ class StandardBidValidatorImplTest {
                     .hasMessageContaining("Amount wajib lebih dari 0.");
         }
 
-        // --- proxy bid rules ---
-
         @Test
         void proxyBid_nullProxyMaxLimit_throws() {
             assertThatThrownBy(() -> validator.validateRequest(proxyRequest(new BigDecimal("100.00"), null), BUYER_ID))
@@ -156,17 +145,13 @@ class StandardBidValidatorImplTest {
 
         @Test
         void proxyBid_proxyMaxLimitLessThanAmount_throws() {
-            // proxyMaxLimit < amount is logically contradictory
             assertThatThrownBy(() -> validator.validateRequest(proxyRequest(new BigDecimal("100.00"), new BigDecimal("80.00")), BUYER_ID))
                     .isInstanceOf(BidValidationException.class)
                     .hasMessageContaining("proxyMaxLimit tidak boleh lebih kecil dari amount.");
         }
 
-        // --- edge: boundary value ---
-
         @Test
         void proxyBid_proxyMaxLimitExactlyEqualToAmount_passes() {
-            // Equal is explicitly allowed: proxyMaxLimit >= amount
             assertThatNoException()
                     .isThrownBy(() -> validator.validateRequest(
                             proxyRequest(new BigDecimal("100.00"), new BigDecimal("100.00")), BUYER_ID));
@@ -179,8 +164,6 @@ class StandardBidValidatorImplTest {
                             proxyRequest(new BigDecimal("100.00"), new BigDecimal("500.00")), BUYER_ID));
         }
 
-        // --- happy paths ---
-
         @Test
         void normalBid_allFieldsValid_passes() {
             assertThatNoException()
@@ -189,7 +172,6 @@ class StandardBidValidatorImplTest {
 
         @Test
         void proxyBidFalse_proxyMaxLimitIgnored_passes() {
-            // Even if proxyMaxLimit is accidentally sent, it must not be validated when proxyBid=false
             CreateBidRequest req = new CreateBidRequest(LISTING_ID, new BigDecimal("100.00"), false, new BigDecimal("50.00"));
 
             assertThatNoException()
@@ -204,14 +186,11 @@ class StandardBidValidatorImplTest {
     @Nested
     class ValidateBidContext {
 
-        // --- seller / buyer identity ---
-
         @Test
         void buyerIsSeller_throws() {
-            // Pass BUYER_ID as both the buyerId arg and the sellerId in the listing
             ListingSnapshot listing = new ListingSnapshot(
                     LISTING_ID, BUYER_ID, new BigDecimal("50.00"),
-                    LocalDateTime.now().plusHours(2), "OPEN"
+                    LocalDateTime.now().plusHours(2), AuctionStatus.ACTIVE, null, null
             );
 
             assertThatThrownBy(() -> validator.validateBidContext(
@@ -222,10 +201,9 @@ class StandardBidValidatorImplTest {
 
         @Test
         void nullSellerIdOnListing_noConflictCheck_passes() {
-            // A listing without a known seller should not block any buyer
             ListingSnapshot listing = new ListingSnapshot(
                     LISTING_ID, null, new BigDecimal("50.00"),
-                    LocalDateTime.now().plusHours(2), "OPEN"
+                    LocalDateTime.now().plusHours(2), AuctionStatus.ACTIVE, null, null
             );
 
             assertThatNoException()
@@ -235,20 +213,17 @@ class StandardBidValidatorImplTest {
 
         @Test
         void buyerIsNotSeller_passes() {
-            // BUYER_ID != SELLER_ID — standard happy path for seller check
             assertThatNoException()
                     .isThrownBy(() -> validator.validateBidContext(
                             BUYER_ID, openListing(), new BigDecimal("100.00"), Optional.empty()));
         }
 
-        // --- auction window ---
-
         @Test
         void auctionExpiredByEndTime_throws() {
             ListingSnapshot listing = new ListingSnapshot(
                     LISTING_ID, SELLER_ID, new BigDecimal("50.00"),
-                    LocalDateTime.now().minusSeconds(1),  // ended 1 second ago
-                    "OPEN"
+                    LocalDateTime.now().minusSeconds(1),
+                    AuctionStatus.ACTIVE, null, null
             );
 
             assertThatThrownBy(() -> validator.validateBidContext(
@@ -262,20 +237,20 @@ class StandardBidValidatorImplTest {
             ListingSnapshot listing = new ListingSnapshot(
                     LISTING_ID, SELLER_ID, new BigDecimal("50.00"),
                     LocalDateTime.now().plusHours(2),
-                    "CLOSED"
+                    AuctionStatus.CLOSED, null, null
             );
 
             assertThatThrownBy(() -> validator.validateBidContext(
                     BUYER_ID, listing, new BigDecimal("100.00"), Optional.empty()))
                     .isInstanceOf(BidValidationException.class)
-                    .hasMessageContaining("Listing sudah tidak aktif");
+                    .hasMessageContaining("Auction sudah ditutup");
         }
 
         @Test
         void auctionStatusActive_passes() {
             ListingSnapshot listing = new ListingSnapshot(
                     LISTING_ID, SELLER_ID, new BigDecimal("50.00"),
-                    LocalDateTime.now().plusHours(2), "ACTIVE"
+                    LocalDateTime.now().plusHours(2), AuctionStatus.ACTIVE, null, null
             );
 
             assertThatNoException()
@@ -283,11 +258,20 @@ class StandardBidValidatorImplTest {
                             BUYER_ID, listing, new BigDecimal("100.00"), Optional.empty()));
         }
 
-        // --- bid amount vs starting price ---
+        @Test
+        void auctionStatusExtended_passes() {
+            ListingSnapshot listing = new ListingSnapshot(
+                    LISTING_ID, SELLER_ID, new BigDecimal("50.00"),
+                    LocalDateTime.now().plusMinutes(1), AuctionStatus.EXTENDED, null, null
+            );
+
+            assertThatNoException()
+                    .isThrownBy(() -> validator.validateBidContext(
+                            BUYER_ID, listing, new BigDecimal("100.00"), Optional.empty()));
+        }
 
         @Test
         void bidBelowStartingPrice_throws() {
-            // openListing has startingPrice=50; bidding 30 must fail
             assertThatThrownBy(() -> validator.validateBidContext(
                     BUYER_ID, openListing(), new BigDecimal("30.00"), Optional.empty()))
                     .isInstanceOf(BidValidationException.class)
@@ -296,7 +280,6 @@ class StandardBidValidatorImplTest {
 
         @Test
         void bidExactlyAtStartingPrice_noCurrentHighest_passes() {
-            // Boundary: bid == startingPrice is explicitly valid as a first bid
             assertThatNoException()
                     .isThrownBy(() -> validator.validateBidContext(
                             BUYER_ID, openListing(), new BigDecimal("50.00"), Optional.empty()));
@@ -304,18 +287,15 @@ class StandardBidValidatorImplTest {
 
         @Test
         void nullStartingPrice_treatedAsZero_smallPositiveBid_passes() {
-            // When startingPrice is null the validator falls back to ZERO
             ListingSnapshot listing = new ListingSnapshot(
                     LISTING_ID, SELLER_ID, null,
-                    LocalDateTime.now().plusHours(2), "OPEN"
+                    LocalDateTime.now().plusHours(2), AuctionStatus.ACTIVE, null, null
             );
 
             assertThatNoException()
                     .isThrownBy(() -> validator.validateBidContext(
                             BUYER_ID, listing, new BigDecimal("0.01"), Optional.empty()));
         }
-
-        // --- bid amount vs current highest bid ---
 
         @Test
         void bidEqualsCurrentHighestAmount_throws() {

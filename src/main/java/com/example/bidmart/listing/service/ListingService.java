@@ -1,15 +1,16 @@
 package com.example.bidmart.listing.service;
 
+import com.example.bidmart.bidding.service.ListingSnapshot;
+import com.example.bidmart.listing.model.AuctionStatus;
 import com.example.bidmart.listing.model.Listing;
 import com.example.bidmart.listing.repository.ListingRepository;
-import com.example.bidmart.bidding.service.ListingSnapshot;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import org.springframework.stereotype.Service;
 
 @Service
 public class ListingService {
@@ -24,8 +25,8 @@ public class ListingService {
         listing.setSellerId(sellerId);
         listing.setCreatedAt(LocalDateTime.now());
 
-        if (listing.getStatus() == null || listing.getStatus().isBlank()) {
-            listing.setStatus("ACTIVE");
+        if (listing.getStatus() == null) {
+            listing.setStatus(AuctionStatus.ACTIVE);
         }
 
         return listingRepository.save(listing);
@@ -37,6 +38,16 @@ public class ListingService {
 
     public Optional<Listing> getListingById(UUID id) {
         return listingRepository.findById(id);
+    }
+
+    @Transactional
+    public Optional<Listing> getListingByIdWithLock(UUID id) {
+        return listingRepository.findByIdWithLock(id);
+    }
+
+    @Transactional
+    public Listing save(Listing listing) {
+        return listingRepository.save(listing);
     }
 
     public Listing updateListing(UUID id, Listing updatedListing) {
@@ -51,7 +62,9 @@ public class ListingService {
         existing.setStartingPrice(updatedListing.getStartingPrice());
         existing.setReservePrice(updatedListing.getReservePrice());
         existing.setEndTime(updatedListing.getEndTime());
-        existing.setStatus(updatedListing.getStatus());
+        if (updatedListing.getStatus() != null) {
+            existing.setStatus(updatedListing.getStatus());
+        }
 
         return listingRepository.save(existing);
     }
@@ -62,7 +75,9 @@ public class ListingService {
                 listing.getSellerId(),
                 listing.getStartingPrice(),
                 listing.getEndTime(),
-                listing.getStatus()
+                listing.getStatus(),
+                listing.getCurrentHighestBid(),
+                listing.getCurrentHighestBidderId()
         );
 
         if (snapshot.isOpenAt(LocalDateTime.now())) {
