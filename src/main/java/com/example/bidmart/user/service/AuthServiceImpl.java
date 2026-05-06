@@ -2,6 +2,7 @@ package com.example.bidmart.user.service;
 
 import com.example.bidmart.user.dto.AuthResponse;
 import com.example.bidmart.user.dto.LoginRequest;
+import com.example.bidmart.user.dto.MfaVerificationRequest;
 import com.example.bidmart.user.dto.RegisterRequest;
 import com.example.bidmart.user.model.Role;
 import com.example.bidmart.user.model.Session;
@@ -24,15 +25,21 @@ public class AuthServiceImpl implements AuthService {
     private final SessionRepository sessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final SessionService sessionService;
+    private final MfaService mfaService;
 
     public AuthServiceImpl(UserRepository userRepository,
-                           SessionRepository sessionRepository,
-                           PasswordEncoder passwordEncoder,
-                           JwtService jwtService) {
+                            SessionRepository sessionRepository,
+                            PasswordEncoder passwordEncoder,
+                            JwtService jwtService,
+                            SessionService sessionService,
+                            MfaService mfaService) {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.sessionService = sessionService;
+        this.mfaService = mfaService;
     }
 
     @Override
@@ -58,25 +65,50 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, String deviceInfo) {
         User user = findUserByIdentifier(request.getIdentifier());
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Invalid password.");
         }
 
+        if (user.isMfaEnabled()){
+            String tempToken = jwtService.generateTempToken(user);
+            return AuthResponse.builder().mfaRequired(true).tempToken(tempToken).build();
+        }
+
+        return finalizeLogin(user, "Default Device");
+    }
+    @Override
+    @Transactional
+    public AuthResponse verifyMfaLogin(MfaVerificationRequest request){
+        String username = jwtService.extractUsername(request.getTempToken());
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found."));
+        if (!mfaService.verifyCode(user.getMfaSecret(), request.getCode())){
+            throw new IllegalArgumentException("Invalid 2FA Code.");
+        }
+
+        return finalizeLogin(user, "Default Device");
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse finalizeLogin(User user, String deviceInfo){
+        sessionService.enforceSessionLimit(user, 3);
         String accessToken = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        Session session = Session.builder()
-                .user(user)
-                .refreshToken(refreshToken)
-                .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
-                .isRevoked(false)
-                .build();
-        sessionRepository.save(session);
+        sessionService.createSession(user, refreshToken, deviceInfo);
 
-        return mapToAuthResponse(user, accessToken, refreshToken);
+        return AuthResponse.builder()
+            .accessToken(accessToken)
+            .refreshToken(refreshToken)
+            .username(user.getUsername())
+            .email(user.getEmail())
+            .displayName(user.getDisplayName())
+            .role(user.getRole().name())
+            .mfaRequired(false)
+            .build();
     }
 
     @Override
@@ -123,5 +155,22 @@ public class AuthServiceImpl implements AuthService {
                 .displayName(user.getDisplayName())
                 .role(user.getRole().name())
                 .build();
+    }
+
+    @Override
+    public AuthResponse refreshToken(String refreshTokenStr) {
+        Session session = sessionRepository.findByRefreshToken(refreshTokenStr).orElseThrow(() -> new IllegalArgumentException("Invalid refresh token."));
+        if (session.isRevoked() || session.getExpiresAt().isBefore(Instant.now())){
+            throw new IllegalArgumentException("Refresh token expired or revoked. Please login again.");
+        }
+        User user = session.getUser();
+
+        session.setRevoked(true);
+        sessionRepository.save(session);
+        String newAccessToken = jwtService.generateAccessToken(user);
+        String newRefreshToken = jwtService.generateRefreshToken(user);
+        sessionService.createSession(user, newRefreshToken, session.getDeviceInfo());
+
+        return mapToAuthResponse(user, newAccessToken, newRefreshToken);
     }
 }

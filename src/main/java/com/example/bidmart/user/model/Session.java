@@ -28,6 +28,18 @@ public class Session {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    @Builder.Default
     @Column(name = "is_revoked", nullable = false)
     private boolean isRevoked = false;
+
+    @Column(name = "device_info")
+    private String deviceInfo;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+    }
 }

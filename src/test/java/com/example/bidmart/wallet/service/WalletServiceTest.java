@@ -1,6 +1,12 @@
 package com.example.bidmart.wallet.service;
 
+import com.example.bidmart.wallet.exception.InsufficientBalanceException;
+import com.example.bidmart.wallet.exception.InvalidAmountException;
+import com.example.bidmart.wallet.exception.WalletAlreadyExistsException;
+import com.example.bidmart.wallet.exception.WalletNotFoundException;
+import com.example.bidmart.wallet.model.Transaction;
 import com.example.bidmart.wallet.model.Wallet;
+import com.example.bidmart.wallet.repository.TransactionRepository;
 import com.example.bidmart.wallet.repository.WalletRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +29,9 @@ class WalletServiceTest {
     @Mock
     private WalletRepository walletRepository;
 
+    @Mock
+    private TransactionRepository transactionRepository;
+
     @InjectMocks
     private WalletService walletService;
 
@@ -32,8 +41,6 @@ class WalletServiceTest {
     void setUp() {
         userId = UUID.randomUUID();
     }
-
-    // === createWallet ===
 
     @Test
     void createWallet_success() {
@@ -51,17 +58,13 @@ class WalletServiceTest {
     }
 
     @Test
-    void createWallet_alreadyExists_returnsNull() {
+    void createWallet_alreadyExists_throwsException() {
         when(walletRepository.findByUserId(userId))
                 .thenReturn(Optional.of(new Wallet(userId)));
 
-        Wallet result = walletService.createWallet(userId);
-
-        assertNull(result);
+        assertThrows(WalletAlreadyExistsException.class, () -> walletService.createWallet(userId));
         verify(walletRepository, never()).save(any(Wallet.class));
     }
-
-    // === getWalletByUserId ===
 
     @Test
     void getWalletByUserId_found() {
@@ -75,15 +78,11 @@ class WalletServiceTest {
     }
 
     @Test
-    void getWalletByUserId_notFound_returnsNull() {
+    void getWalletByUserId_notFound_throwsException() {
         when(walletRepository.findByUserId(userId)).thenReturn(Optional.empty());
 
-        Wallet result = walletService.getWalletByUserId(userId);
-
-        assertNull(result);
+        assertThrows(WalletNotFoundException.class, () -> walletService.getWalletByUserId(userId));
     }
-
-    // === topUp ===
 
     @Test
     void topUp_success() {
@@ -102,32 +101,27 @@ class WalletServiceTest {
     }
 
     @Test
-    void topUp_zeroAmount_returnsNull() {
-        Wallet result = walletService.topUp(userId, BigDecimal.ZERO);
-        assertNull(result);
+    void topUp_zeroAmount_throwsException() {
+        assertThrows(InvalidAmountException.class, () -> walletService.topUp(userId, BigDecimal.ZERO));
         verify(walletRepository, never()).save(any(Wallet.class));
     }
 
     @Test
-    void topUp_negativeAmount_returnsNull() {
-        Wallet result = walletService.topUp(userId, new BigDecimal("-100"));
-        assertNull(result);
+    void topUp_negativeAmount_throwsException() {
+        assertThrows(InvalidAmountException.class, () -> walletService.topUp(userId, new BigDecimal("-100")));
         verify(walletRepository, never()).save(any(Wallet.class));
     }
 
     @Test
-    void topUp_nullAmount_returnsNull() {
-        Wallet result = walletService.topUp(userId, null);
-        assertNull(result);
+    void topUp_nullAmount_throwsException() {
+        assertThrows(InvalidAmountException.class, () -> walletService.topUp(userId, null));
     }
 
     @Test
-    void topUp_walletNotFound_returnsNull() {
+    void topUp_walletNotFound_throwsException() {
         when(walletRepository.findByUserId(userId)).thenReturn(Optional.empty());
 
-        Wallet result = walletService.topUp(userId, new BigDecimal("10000"));
-
-        assertNull(result);
+        assertThrows(WalletNotFoundException.class, () -> walletService.topUp(userId, new BigDecimal("10000")));
         verify(walletRepository, never()).save(any(Wallet.class));
     }
 }

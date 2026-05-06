@@ -31,4 +31,8 @@ public class CustomUserDetailsService implements UserDetailsService {
                 List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
         );
     }
+    //method for basic adding a+b
+    void adding (int a , int b){
+        
+    }
 }

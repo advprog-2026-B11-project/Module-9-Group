@@ -42,4 +42,16 @@ public class NotificationController {
         Notification newNotification = notificationService.createNotification(userId, type, message);
         return ResponseEntity.ok(newNotification);
     }
+
+    @PatchMapping("/user/{userId}/read-all")
+    public ResponseEntity<Map<String, String>> markAllAsRead(@PathVariable UUID userId) {
+        notificationService.markAllAsRead(userId);
+        return ResponseEntity.ok(Map.of("message", "Semua notifikasi berhasil ditandai sudah dibaca"));
+    }
+
+    @DeleteMapping("/{notificationId}")
+    public ResponseEntity<Map<String, String>> deleteNotification(@PathVariable UUID notificationId) {
+        notificationService.deleteNotification(notificationId);
+        return ResponseEntity.ok(Map.of("message", "Notifikasi berhasil dihapus"));
+    }
 }

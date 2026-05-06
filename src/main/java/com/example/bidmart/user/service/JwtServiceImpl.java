@@ -75,4 +75,11 @@ public class JwtServiceImpl implements JwtService {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
+
+    @Override
+    public String generateTempToken(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("isMfaTemp", true);
+        return buildToken(claims, user.getUsername(), 300000);
+    }
 }

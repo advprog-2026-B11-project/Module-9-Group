@@ -34,4 +34,16 @@ public class NotificationService {
         notification.setRead(true);
         return notificationRepository.save(notification);
     }
+
+    public void markAllAsRead(UUID userId) {
+        List<Notification> unreadNotifications = notificationRepository.findByUserIdAndIsReadFalse(userId);
+        for (Notification notif : unreadNotifications) {
+            notif.setRead(true);
+        }
+        notificationRepository.saveAll(unreadNotifications);
+    }
+
+    public void deleteNotification(UUID notificationId) {
+        notificationRepository.deleteById(notificationId);
+    }
 }
