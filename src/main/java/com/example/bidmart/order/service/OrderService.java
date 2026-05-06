@@ -39,4 +39,11 @@ public class OrderService {
         order.setStatus("SHIPPED");
         return orderRepository.save(order);
     }
+
+    public void deleteOrder(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Pesanan tidak ditemukan dengan ID: " + orderId));
+
+        orderRepository.delete(order);
+    }
 }

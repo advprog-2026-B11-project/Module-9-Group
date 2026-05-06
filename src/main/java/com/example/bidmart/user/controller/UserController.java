@@ -5,6 +5,7 @@ import com.example.bidmart.user.dto.UserProfileResponse;
 import com.example.bidmart.user.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -36,5 +37,11 @@ public class UserController {
             @RequestBody UpdateProfileRequest request) {
         UserProfileResponse profile = userService.updateProfile(authentication.getName(), request);
         return ResponseEntity.ok(profile);
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteProfile(Authentication authentication) {
+        userService.deleteProfile(authentication.getName());
+        return ResponseEntity.noContent().build();
     }
 }

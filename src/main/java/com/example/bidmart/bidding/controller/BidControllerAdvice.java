@@ -7,10 +7,11 @@ import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(basePackageClasses = {BidController.class, BidMockController.class})
+@RestControllerAdvice(basePackageClasses = {BidController.class})
 public class BidControllerAdvice {
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -26,6 +27,11 @@ public class BidControllerAdvice {
     @ExceptionHandler(InsufficientBalanceException.class)
     public ResponseEntity<ErrorResponse> handleInsufficientBalance(InsufficientBalanceException ex) {
         return buildResponse(HttpStatus.UNPROCESSABLE_CONTENT, "INSUFFICIENT_BALANCE", ex.getMessage());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        return buildResponse(HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

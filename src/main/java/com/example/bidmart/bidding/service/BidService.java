@@ -2,79 +2,91 @@ package com.example.bidmart.bidding.service;
 
 import com.example.bidmart.bidding.dto.BidResponse;
 import com.example.bidmart.bidding.dto.CreateBidRequest;
+import com.example.bidmart.bidding.event.OutbidEvent;
 import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
-import com.example.bidmart.common.event.BidPlacedEvent; // IMPORT EVENT-NYA
+import com.example.bidmart.bidding.validator.BidRuleValidator;
+import com.example.bidmart.common.event.BidPlacedEvent;
+import com.example.bidmart.listing.model.Listing;
+import com.example.bidmart.listing.service.ListingService;
+import com.example.bidmart.wallet.service.WalletService;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.context.ApplicationEventPublisher; // IMPORT PUBLISHER
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BidService {
 
     private final BidRepository bidRepository;
-    private final ListingLookupService listingLookupService;
-    private final MockWalletService mockWalletService;
+    private final ListingService listingService;
+    private final WalletService walletService;
+    private final BidRuleValidator bidRuleValidator;
     private final ApplicationEventPublisher eventPublisher;
 
     public BidService(
             BidRepository bidRepository,
-            ListingLookupService listingLookupService,
-            MockWalletService mockWalletService,
+            ListingService listingService,
+            WalletService walletService,
+            BidRuleValidator bidRuleValidator,
             ApplicationEventPublisher eventPublisher
     ) {
         this.bidRepository = bidRepository;
-        this.listingLookupService = listingLookupService;
-        this.mockWalletService = mockWalletService;
+        this.listingService = listingService;
+        this.walletService = walletService;
+        this.bidRuleValidator = bidRuleValidator;
         this.eventPublisher = eventPublisher;
     }
 
     @Transactional
-    public BidResponse placeBid(CreateBidRequest request) {
-        validateCreateBidRequest(request);
+    public BidResponse placeBid(UUID buyerId, CreateBidRequest request) {
+        bidRuleValidator.validateRequest(request, buyerId);
 
-        ListingSnapshot listing = listingLookupService.findById(request.listingId())
-                .orElseThrow(() -> new ResourceNotFoundException("Listing tidak ditemukan: " + request.listingId()));
-
-        validateListingForBid(listing, request.buyerId());
+        ListingSnapshot listing = listingService.getListingById(request.listingId())
+                .map(this::toSnapshot)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Listing tidak ditemukan: " + request.listingId()));
 
         Optional<Bid> currentHighestBid = bidRepository
                 .findTopByListingIdOrderByAmountDescCreatedAtAsc(request.listingId());
 
-        validateBidAmount(request.amount(), listing, currentHighestBid);
+        bidRuleValidator.validateBidContext(buyerId, listing, request.amount(), currentHighestBid);
 
         boolean proxyBid = Boolean.TRUE.equals(request.proxyBid());
-        BigDecimal reserveTarget = resolveReserveTarget(request.amount(), proxyBid, request.proxyMaxLimit());
+        BigDecimal reserveTarget = proxyBid ? request.proxyMaxLimit() : request.amount();
 
         Optional<Bid> latestBidByBuyer = bidRepository
-                .findTopByListingIdAndBuyerIdOrderByCreatedAtDesc(request.listingId(), request.buyerId());
+                .findTopByListingIdAndBuyerIdOrderByCreatedAtDesc(request.listingId(), buyerId);
 
         BigDecimal previousReservedAmount = latestBidByBuyer
                 .map(Bid::getReservedAmount)
                 .orElse(BigDecimal.ZERO);
 
-        mockWalletService.reserveBidFunds(
-                request.buyerId(),
-                request.listingId(),
-                reserveTarget.max(previousReservedAmount)
-        );
+        BigDecimal additionalReserve = reserveTarget.max(previousReservedAmount)
+                .subtract(previousReservedAmount);
+
+        if (additionalReserve.compareTo(BigDecimal.ZERO) > 0) {
+            walletService.reserveBidFunds(buyerId, request.listingId(), additionalReserve);
+        }
 
         Bid bid = new Bid();
         bid.setListingId(request.listingId());
-        bid.setBuyerId(request.buyerId());
+        bid.setBuyerId(buyerId);
         bid.setAmount(request.amount());
         bid.setProxyBid(proxyBid);
         bid.setProxyMaxLimit(proxyBid ? request.proxyMaxLimit() : null);
 
         Bid savedBid = bidRepository.save(bid);
-        releasePreviousHighestBidIfOutbid(currentHighestBid, savedBid);
+
+        releaseOutbidFunds(currentHighestBid, savedBid)
+                .ifPresent(outbid -> eventPublisher.publishEvent(
+                        new OutbidEvent(savedBid.getListingId(), outbid.getBuyerId(), savedBid.getAmount())));
 
         eventPublisher.publishEvent(new BidPlacedEvent(
                 savedBid.getListingId(),
@@ -101,7 +113,8 @@ public class BidService {
         }
 
         Bid highestBid = bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Belum ada bid untuk listing: " + listingId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Belum ada bid untuk listing: " + listingId));
 
         return BidResponse.from(highestBid);
     }
@@ -116,80 +129,37 @@ public class BidService {
                 .toList();
     }
 
-    private void validateCreateBidRequest(CreateBidRequest request) {
-        // ... (KODE VALIDASI TETAP SAMA) ...
-        if (request == null) {
-            throw new BidValidationException("Request bid tidak boleh kosong.");
-        }
+    private ListingSnapshot toSnapshot(Listing listing) {
+        BigDecimal startingPrice = listing.getStartingPrice() == null
+                ? BigDecimal.ZERO
+                : listing.getStartingPrice();
 
-        if (request.listingId() == null) {
-            throw new BidValidationException("listingId wajib diisi.");
-        }
-
-        if (request.buyerId() == null) {
-            throw new BidValidationException("buyerId wajib diisi.");
-        }
-
-        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BidValidationException("Amount wajib lebih dari 0.");
-        }
-
-        if (Boolean.TRUE.equals(request.proxyBid())) {
-            if (request.proxyMaxLimit() == null || request.proxyMaxLimit().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BidValidationException("proxyMaxLimit wajib diisi dan lebih dari 0 untuk proxy bid.");
-            }
-
-            if (request.proxyMaxLimit().compareTo(request.amount()) < 0) {
-                throw new BidValidationException("proxyMaxLimit tidak boleh lebih kecil dari amount.");
-            }
-        }
+        return new ListingSnapshot(
+                listing.getId(),
+                listing.getSellerId(),
+                startingPrice,
+                listing.getEndTime(),
+                listing.getStatus()
+        );
     }
 
-    private void validateListingForBid(ListingSnapshot listing, UUID buyerId) {
-        if (listing.sellerId() != null && listing.sellerId().equals(buyerId)) {
-            throw new BidValidationException("Seller tidak boleh melakukan bid pada listing miliknya sendiri.");
-        }
-
-        if (!listing.isOpenAt(LocalDateTime.now())) {
-            throw new BidValidationException("Listing sudah tidak aktif atau waktu lelang telah berakhir.");
-        }
-    }
-
-    private void validateBidAmount(BigDecimal bidAmount, ListingSnapshot listing, Optional<Bid> currentHighestBid) {
-        BigDecimal startingPrice = listing.startingPrice() == null ? BigDecimal.ZERO : listing.startingPrice();
-
-        if (bidAmount.compareTo(startingPrice) < 0) {
-            throw new BidValidationException("Bid harus lebih besar atau sama dengan starting price " + startingPrice + ".");
-        }
-
-        if (currentHighestBid.isPresent() && bidAmount.compareTo(currentHighestBid.get().getAmount()) <= 0) {
-            throw new BidValidationException("Bid harus lebih tinggi dari bid tertinggi saat ini.");
-        }
-    }
-
-    private BigDecimal resolveReserveTarget(BigDecimal amount, boolean proxyBid, BigDecimal proxyMaxLimit) {
-        if (!proxyBid) {
-            return amount;
-        }
-
-        return proxyMaxLimit;
-    }
-
-    private void releasePreviousHighestBidIfOutbid(Optional<Bid> previousHighestBid, Bid latestSavedBid) {
+    private Optional<Bid> releaseOutbidFunds(Optional<Bid> previousHighestBid, Bid newBid) {
         if (previousHighestBid.isEmpty()) {
-            return;
+            return Optional.empty();
         }
 
         Bid previous = previousHighestBid.get();
 
-        if (previous.getBuyerId().equals(latestSavedBid.getBuyerId())) {
-            return;
+        if (previous.getBuyerId().equals(newBid.getBuyerId())) {
+            return Optional.empty();
         }
 
-        mockWalletService.releaseBidFunds(
+        walletService.releaseBidFunds(
                 previous.getBuyerId(),
                 previous.getListingId(),
                 previous.getReservedAmount()
         );
+
+        return Optional.of(previous);
     }
 }

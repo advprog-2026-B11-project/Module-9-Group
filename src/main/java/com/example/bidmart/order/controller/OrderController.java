@@ -52,4 +52,11 @@ public class OrderController {
         Order newOrder = orderService.createOrderAutomatically(listingId, buyerId);
         return ResponseEntity.ok(newOrder);
     }
+
+    @DeleteMapping("/{orderId}")
+    public ResponseEntity<Map<String, String>> deleteOrder(@PathVariable UUID orderId) {
+        orderService.deleteOrder(orderId);
+
+        return ResponseEntity.ok(Map.of("message", "Pesanan berhasil dihapus"));
+    }
 }

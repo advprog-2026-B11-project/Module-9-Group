@@ -1,18 +1,18 @@
 package com.example.bidmart.order.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "orders")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Order {
 
     @Id
@@ -34,9 +34,6 @@ public class Order {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public Order() {
-    }
-
     public Order(UUID listingId, UUID buyerId, String status) {
         this.listingId = listingId;
         this.buyerId = buyerId;
@@ -47,23 +44,4 @@ public class Order {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
-
-
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-
-    public UUID getListingId() { return listingId; }
-    public void setListingId(UUID listingId) { this.listingId = listingId; }
-
-    public UUID getBuyerId() { return buyerId; }
-    public void setBuyerId(UUID buyerId) { this.buyerId = buyerId; }
-
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-
-    public String getTrackingNumber() { return trackingNumber; }
-    public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

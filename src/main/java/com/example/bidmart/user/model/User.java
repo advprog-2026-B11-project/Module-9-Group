@@ -39,4 +39,10 @@ public class User {
 
     @Column(name = "verification_token")
     private String verificationToken;
+
+    @Column(name = "is_mfa_enabled", nullable = false)
+    private boolean isMfaEnabled = false;
+
+    @Column(name = "mfa_secret")
+    private String mfaSecret;
 }
