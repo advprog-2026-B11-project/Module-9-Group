@@ -2,7 +2,7 @@ package com.example.bidmart.order.controller;
 
 import com.example.bidmart.order.model.Order;
 import com.example.bidmart.order.service.OrderService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,10 +13,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/orders")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class OrderController {
 
-    @Autowired
-    private OrderService orderService;
+    private final OrderService orderService;
 
     @GetMapping("/buyer/{buyerId}")
     public ResponseEntity<List<Order>> getOrdersByBuyer(@PathVariable UUID buyerId) {
@@ -56,7 +56,6 @@ public class OrderController {
     @DeleteMapping("/{orderId}")
     public ResponseEntity<Map<String, String>> deleteOrder(@PathVariable UUID orderId) {
         orderService.deleteOrder(orderId);
-
         return ResponseEntity.ok(Map.of("message", "Pesanan berhasil dihapus"));
     }
 }

@@ -2,13 +2,13 @@ package com.example.bidmart.bidding.service;
 
 import com.example.bidmart.bidding.dto.BidResponse;
 import com.example.bidmart.bidding.dto.CreateBidRequest;
-import com.example.bidmart.bidding.event.BidPlacedEvent;
 import com.example.bidmart.bidding.event.OutbidEvent;
 import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
 import com.example.bidmart.bidding.validator.BidRuleValidator;
+import com.example.bidmart.common.event.BidPlacedEvent;
 import com.example.bidmart.listing.model.Listing;
 import com.example.bidmart.listing.service.ListingService;
 import com.example.bidmart.wallet.service.WalletService;
@@ -46,7 +46,6 @@ public class BidService {
 
     @Transactional
     public BidResponse placeBid(UUID buyerId, CreateBidRequest request) {
-        // Phase 1: validate raw input before any I/O
         bidRuleValidator.validateRequest(request, buyerId);
 
         ListingSnapshot listing = listingService.getListingById(request.listingId())
@@ -57,7 +56,6 @@ public class BidService {
         Optional<Bid> currentHighestBid = bidRepository
                 .findTopByListingIdOrderByAmountDescCreatedAtAsc(request.listingId());
 
-        // Phase 2: validate business context (seller check, auction window, bid amount)
         bidRuleValidator.validateBidContext(buyerId, listing, request.amount(), currentHighestBid);
 
         boolean proxyBid = Boolean.TRUE.equals(request.proxyBid());
@@ -70,7 +68,6 @@ public class BidService {
                 .map(Bid::getReservedAmount)
                 .orElse(BigDecimal.ZERO);
 
-        // Only lock the incremental amount not yet reserved for this listing.
         BigDecimal additionalReserve = reserveTarget.max(previousReservedAmount)
                 .subtract(previousReservedAmount);
 
@@ -87,13 +84,15 @@ public class BidService {
 
         Bid savedBid = bidRepository.save(bid);
 
-        // Release outbid user's reserved funds and capture who was outbid.
         releaseOutbidFunds(currentHighestBid, savedBid)
                 .ifPresent(outbid -> eventPublisher.publishEvent(
                         new OutbidEvent(savedBid.getListingId(), outbid.getBuyerId(), savedBid.getAmount())));
 
-        eventPublisher.publishEvent(
-                new BidPlacedEvent(savedBid.getListingId(), savedBid.getBuyerId(), savedBid.getAmount()));
+        eventPublisher.publishEvent(new BidPlacedEvent(
+                savedBid.getListingId(),
+                savedBid.getBuyerId(),
+                savedBid.getAmount()
+        ));
 
         return BidResponse.from(savedBid);
     }
@@ -130,8 +129,6 @@ public class BidService {
                 .toList();
     }
 
-    // --- private helpers ---------------------------------------------------
-
     private ListingSnapshot toSnapshot(Listing listing) {
         BigDecimal startingPrice = listing.getStartingPrice() == null
                 ? BigDecimal.ZERO
@@ -146,11 +143,6 @@ public class BidService {
         );
     }
 
-    /**
-     * Releases reserved funds for the previous highest bidder when they are outbid.
-     * Returns the outbid bid so the caller can publish an OutbidEvent, or empty if
-     * no outbid occurred (first bid, or same buyer raising their own bid).
-     */
     private Optional<Bid> releaseOutbidFunds(Optional<Bid> previousHighestBid, Bid newBid) {
         if (previousHighestBid.isEmpty()) {
             return Optional.empty();
