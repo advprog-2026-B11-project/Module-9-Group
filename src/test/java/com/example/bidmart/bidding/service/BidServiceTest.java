@@ -2,11 +2,13 @@ package com.example.bidmart.bidding.service;
 
 import com.example.bidmart.bidding.dto.BidResponse;
 import com.example.bidmart.bidding.dto.CreateBidRequest;
+import com.example.bidmart.bidding.event.OutbidEvent;
 import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
 import com.example.bidmart.bidding.validator.BidRuleValidator;
+import com.example.bidmart.common.event.BidPlacedEvent;
 import com.example.bidmart.listing.model.Listing;
 import com.example.bidmart.listing.service.ListingService;
 import com.example.bidmart.wallet.service.WalletService;
@@ -38,7 +40,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BidServiceTest {
 
-    // Mockito will use the single all-args constructor of BidService for injection.
     @Mock private BidRepository            bidRepository;
     @Mock private ListingService           listingService;
     @Mock private WalletService            walletService;
@@ -48,14 +49,6 @@ class BidServiceTest {
     @InjectMocks
     private BidService bidService;
 
-    // =========================================================================
-    // Shared test-data builders
-    // =========================================================================
-
-    /**
-     * Returns a {@link Listing} whose auction is open (status=OPEN, endTime in the future).
-     * The caller controls the IDs and the starting price.
-     */
     private Listing activeListing(UUID id, UUID sellerId, BigDecimal startingPrice) {
         Listing listing = new Listing();
         listing.setId(id);
@@ -66,10 +59,6 @@ class BidServiceTest {
         return listing;
     }
 
-    /**
-     * Returns a persisted-style {@link Bid} (id and createdAt set) for a regular,
-     * non-proxy bid.
-     */
     private Bid regularBid(UUID listingId, UUID buyerId, BigDecimal amount) {
         Bid bid = new Bid();
         bid.setId(UUID.randomUUID());
@@ -81,10 +70,6 @@ class BidServiceTest {
         return bid;
     }
 
-    /**
-     * Returns a persisted-style proxy {@link Bid}.
-     * {@code getReservedAmount()} returns {@code proxyMaxLimit} for this bid.
-     */
     private Bid proxyBid(UUID listingId, UUID buyerId, BigDecimal amount, BigDecimal proxyMaxLimit) {
         Bid bid = new Bid();
         bid.setId(UUID.randomUUID());
@@ -97,25 +82,9 @@ class BidServiceTest {
         return bid;
     }
 
-    // =========================================================================
-    // placeBid
-    // =========================================================================
-
     @Nested
     class PlaceBid {
 
-        /**
-         * Golden-path test: no prior bids, single buyer, verifies the
-         * end-to-end orchestration sequence using Mockito {@link InOrder}.
-         *
-         * Expected call order:
-         *   1. bidRuleValidator.validateRequest
-         *   2. listingService.getListingById
-         *   3. bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc
-         *   4. bidRuleValidator.validateBidContext
-         *   5. walletService.reserveBidFunds  (full amount, no prior reservation)
-         *   6. bidRepository.save
-         */
         @Test
         void firstBid_verifyFullOrchestratorSequence() {
             UUID listingId = UUID.randomUUID();
@@ -135,12 +104,10 @@ class BidServiceTest {
 
             BidResponse response = bidService.placeBid(buyerId, request);
 
-            // ── response content ──────────────────────────────────────────────
             assertThat(response.listingId()).isEqualTo(listingId);
             assertThat(response.buyerId()).isEqualTo(buyerId);
             assertThat(response.amount()).isEqualByComparingTo(amount);
 
-            // ── strict call sequence ──────────────────────────────────────────
             InOrder seq = inOrder(bidRuleValidator, listingService, bidRepository, walletService);
             seq.verify(bidRuleValidator).validateRequest(request, buyerId);
             seq.verify(listingService).getListingById(listingId);
@@ -148,12 +115,10 @@ class BidServiceTest {
             seq.verify(bidRuleValidator).validateBidContext(eq(buyerId), any(), eq(amount), any());
             seq.verify(walletService).reserveBidFunds(buyerId, listingId, amount);
             seq.verify(bidRepository).save(any(Bid.class));
+
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
         }
 
-        /**
-         * When {@code validateRequest} throws, the service must halt immediately:
-         * no I/O calls (listing service, repository, wallet service) must occur.
-         */
         @Test
         void validateRequestThrows_noIOCallsMade() {
             UUID listingId = UUID.randomUUID();
@@ -172,19 +137,14 @@ class BidServiceTest {
             verify(bidRuleValidator, never()).validateBidContext(any(), any(), any(), any());
             verify(walletService,   never()).reserveBidFunds(any(), any(), any());
             verify(bidRepository,   never()).save(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
-        /**
-         * When {@code validateBidContext} throws, the service must halt before
-         * touching the wallet or persisting any bid.
-         * (The listing and highest-bid fetches happen before Phase 2 validation
-         * and are intentionally stubbed here to reach that code path.)
-         */
         @Test
         void validateBidContextThrows_haltBeforeSaveAndWallet() {
             UUID listingId = UUID.randomUUID();
             UUID buyerId   = UUID.randomUUID();
-            UUID sellerId  = buyerId; // simulating a seller-tries-to-bid scenario
+            UUID sellerId  = buyerId;
             CreateBidRequest request = new CreateBidRequest(listingId, new BigDecimal("100.00"), false, null);
 
             when(listingService.getListingById(listingId))
@@ -200,6 +160,7 @@ class BidServiceTest {
 
             verify(walletService, never()).reserveBidFunds(any(), any(), any());
             verify(bidRepository, never()).save(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -214,21 +175,13 @@ class BidServiceTest {
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining(listingId.toString());
 
-            // Phase 1 validator ran, but Phase 2 and all write operations must not run
             verify(bidRuleValidator).validateRequest(request, buyerId);
             verify(bidRuleValidator, never()).validateBidContext(any(), any(), any(), any());
             verify(walletService,   never()).reserveBidFunds(any(), any(), any());
             verify(bidRepository,   never()).save(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
-        /**
-         * When the same buyer raises their bid, only the incremental delta must
-         * be sent to the wallet (not the full new amount).
-         *
-         * Setup:  buyer previously bid 200 → reservedAmount=200
-         *         buyer now bids 300       → reserveTarget=300
-         *         additionalReserve = max(300,200) - 200 = 100
-         */
         @Test
         void sameBuyerRaisesBid_onlyDeltaReserved_noFundsReleased() {
             UUID listingId = UUID.randomUUID();
@@ -250,16 +203,12 @@ class BidServiceTest {
 
             bidService.placeBid(buyerId, request);
 
-            // Only the delta (300 - 200 = 100) must be locked
             verify(walletService).reserveBidFunds(buyerId, listingId, new BigDecimal("100.00"));
-            // Self-outbid: previous highest is same buyer → no release
             verify(walletService, never()).releaseBidFunds(any(), any(), any());
+            verify(eventPublisher, never()).publishEvent(any(OutbidEvent.class));
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
         }
 
-        /**
-         * When a new buyer outbids the current highest bidder, the previous
-         * highest bidder's locked funds must be released.
-         */
         @Test
         void outbidsDifferentBuyer_releasesPreviousHighestBidderFunds() {
             UUID listingId      = UUID.randomUUID();
@@ -283,15 +232,12 @@ class BidServiceTest {
             bidService.placeBid(newBuyerId, request);
 
             verify(walletService).reserveBidFunds(newBuyerId, listingId, newAmount);
-            // Previous bidder must have their full reserved amount returned
-            verify(walletService).releaseBidFunds(
-                    eq(previousBuyerId), eq(listingId), eq(previousAmount));
+            verify(walletService).releaseBidFunds(eq(previousBuyerId), eq(listingId), eq(previousAmount));
+
+            verify(eventPublisher).publishEvent(any(OutbidEvent.class));
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
         }
 
-        /**
-         * For a proxy bid the reserve target is {@code proxyMaxLimit}, not
-         * {@code amount}. The wallet must be charged the proxy ceiling.
-         */
         @Test
         void proxyBid_proxyMaxLimitUsedAsReserveTarget() {
             UUID listingId     = UUID.randomUUID();
@@ -316,19 +262,10 @@ class BidServiceTest {
 
             bidService.placeBid(buyerId, request);
 
-            // proxyMaxLimit (500) must be locked, not the bid amount (100)
             verify(walletService).reserveBidFunds(buyerId, listingId, proxyMaxLimit);
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
         }
 
-        /**
-         * Edge-case: buyer's previous proxy reservation already covers the new
-         * regular-bid target, so the additional reserve delta is zero and
-         * {@code reserveBidFunds} must NOT be called.
-         *
-         * Setup:  buyer's previous proxy had proxyMaxLimit=500 → reservedAmount=500
-         *         new regular bid amount=300                   → reserveTarget=300
-         *         additionalReserve = max(300,500) - 500 = 0
-         */
         @Test
         void previousProxyReservationCoversNewBid_reserveFundsNotCalled() {
             UUID listingId = UUID.randomUUID();
@@ -336,7 +273,6 @@ class BidServiceTest {
             BigDecimal newAmount = new BigDecimal("300.00");
             CreateBidRequest request = new CreateBidRequest(listingId, newAmount, false, null);
 
-            // Previous bid was a proxy with maxLimit=500 → getReservedAmount() returns 500
             Bid previousProxyBid = proxyBid(listingId, buyerId, new BigDecimal("200.00"), new BigDecimal("500.00"));
 
             when(listingService.getListingById(listingId))
@@ -351,12 +287,9 @@ class BidServiceTest {
             bidService.placeBid(buyerId, request);
 
             verify(walletService, never()).reserveBidFunds(any(), any(), any());
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
         }
     }
-
-    // =========================================================================
-    // getBidsByListing
-    // =========================================================================
 
     @Nested
     class GetBidsByListing {
@@ -381,10 +314,6 @@ class BidServiceTest {
             assertThat(result.get(0).listingId()).isEqualTo(listingId);
         }
     }
-
-    // =========================================================================
-    // getHighestBid
-    // =========================================================================
 
     @Nested
     class GetHighestBid {
@@ -419,10 +348,6 @@ class BidServiceTest {
             assertThat(result.amount()).isEqualByComparingTo(new BigDecimal("500.00"));
         }
     }
-
-    // =========================================================================
-    // getBidsByBuyer
-    // =========================================================================
 
     @Nested
     class GetBidsByBuyer {

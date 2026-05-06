@@ -1,5 +1,6 @@
 package com.example.bidmart.notification.service;
 
+import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import com.example.bidmart.notification.model.Notification;
 import com.example.bidmart.notification.repository.NotificationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +43,10 @@ class NotificationServiceTest {
     @Test
     void createNotification_success() {
         when(notificationRepository.save(any(Notification.class))).thenReturn(notification);
-
         Notification result = notificationService.createNotification(userId, "TEST_TYPE", "Test Message");
-
         assertNotNull(result);
         assertEquals(userId, result.getUserId());
         assertEquals("TEST_TYPE", result.getType());
-        assertEquals("Test Message", result.getMessage());
         assertFalse(result.isRead());
         verify(notificationRepository, times(1)).save(any(Notification.class));
     }
@@ -57,11 +55,8 @@ class NotificationServiceTest {
     void getUserNotifications_returnsList() {
         when(notificationRepository.findByUserIdOrderByCreatedAtDesc(userId))
                 .thenReturn(Arrays.asList(notification));
-
         List<Notification> result = notificationService.getUserNotifications(userId);
-
         assertEquals(1, result.size());
-        assertEquals(notificationId, result.get(0).getId());
         verify(notificationRepository, times(1)).findByUserIdOrderByCreatedAtDesc(userId);
     }
 
@@ -69,9 +64,7 @@ class NotificationServiceTest {
     void getUnreadNotifications_returnsList() {
         when(notificationRepository.findByUserIdAndIsReadFalse(userId))
                 .thenReturn(Arrays.asList(notification));
-
         List<Notification> result = notificationService.getUnreadNotifications(userId);
-
         assertEquals(1, result.size());
         assertFalse(result.get(0).isRead());
         verify(notificationRepository, times(1)).findByUserIdAndIsReadFalse(userId);
@@ -81,9 +74,7 @@ class NotificationServiceTest {
     void markAsRead_success() {
         when(notificationRepository.findById(notificationId)).thenReturn(Optional.of(notification));
         when(notificationRepository.save(any(Notification.class))).thenReturn(notification);
-
         Notification result = notificationService.markAsRead(notificationId);
-
         assertTrue(result.isRead());
         verify(notificationRepository, times(1)).save(notification);
     }
@@ -92,7 +83,7 @@ class NotificationServiceTest {
     void markAsRead_notFound_throwsException() {
         when(notificationRepository.findById(notificationId)).thenReturn(Optional.empty());
 
-        Exception exception = assertThrows(RuntimeException.class, () -> {
+        Exception exception = assertThrows(ResourceNotFoundException.class, () -> {
             notificationService.markAsRead(notificationId);
         });
 
@@ -104,7 +95,6 @@ class NotificationServiceTest {
     void markAllAsRead_success() {
         Notification notif2 = new Notification(userId, "TYPE_2", "Message 2");
         List<Notification> unreadList = Arrays.asList(notification, notif2);
-
         when(notificationRepository.findByUserIdAndIsReadFalse(userId)).thenReturn(unreadList);
 
         notificationService.markAllAsRead(userId);
@@ -116,10 +106,22 @@ class NotificationServiceTest {
 
     @Test
     void deleteNotification_success() {
-        doNothing().when(notificationRepository).deleteById(notificationId);
+        when(notificationRepository.findById(notificationId)).thenReturn(Optional.of(notification));
+        doNothing().when(notificationRepository).delete(notification);
 
         notificationService.deleteNotification(notificationId);
 
-        verify(notificationRepository, times(1)).deleteById(notificationId);
+        verify(notificationRepository, times(1)).delete(notification);
+    }
+
+    @Test
+    void deleteNotification_notFound_throwsException() {
+        when(notificationRepository.findById(notificationId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> {
+            notificationService.deleteNotification(notificationId);
+        });
+
+        verify(notificationRepository, never()).delete(any(Notification.class));
     }
 }

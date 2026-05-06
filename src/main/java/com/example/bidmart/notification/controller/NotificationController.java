@@ -2,7 +2,7 @@ package com.example.bidmart.notification.controller;
 
 import com.example.bidmart.notification.model.Notification;
 import com.example.bidmart.notification.service.NotificationService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,10 +13,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/notifications")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class NotificationController {
 
-    @Autowired
-    private NotificationService notificationService;
+    private final NotificationService notificationService;
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Notification>> getUserNotifications(@PathVariable UUID userId) {
@@ -39,8 +39,7 @@ public class NotificationController {
         String type = requestBody.get("type");
         String message = requestBody.get("message");
 
-        Notification newNotification = notificationService.createNotification(userId, type, message);
-        return ResponseEntity.ok(newNotification);
+        return ResponseEntity.ok(notificationService.createNotification(userId, type, message));
     }
 
     @PatchMapping("/user/{userId}/read-all")
