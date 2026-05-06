@@ -6,11 +6,13 @@ import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
+import com.example.bidmart.common.event.BidPlacedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,15 +22,18 @@ public class BidService {
     private final BidRepository bidRepository;
     private final ListingLookupService listingLookupService;
     private final MockWalletService mockWalletService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public BidService(
             BidRepository bidRepository,
             ListingLookupService listingLookupService,
-            MockWalletService mockWalletService
+            MockWalletService mockWalletService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.bidRepository = bidRepository;
         this.listingLookupService = listingLookupService;
         this.mockWalletService = mockWalletService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -70,6 +75,13 @@ public class BidService {
 
         Bid savedBid = bidRepository.save(bid);
         releasePreviousHighestBidIfOutbid(currentHighestBid, savedBid);
+
+        // 5. Publish event tepat setelah bid berhasil disimpan ke database
+        eventPublisher.publishEvent(new BidPlacedEvent(
+                savedBid.getListingId(),
+                savedBid.getBuyerId(),
+                savedBid.getAmount()
+        ));
 
         return BidResponse.from(savedBid);
     }
