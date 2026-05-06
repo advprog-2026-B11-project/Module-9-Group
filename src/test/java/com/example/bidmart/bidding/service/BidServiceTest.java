@@ -14,6 +14,7 @@ import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.InsufficientBalanceException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
+import com.example.bidmart.common.event.BidPlacedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class BidServiceTest {
@@ -33,6 +35,9 @@ class BidServiceTest {
     @Mock
     private ListingLookupService listingLookupService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private MockWalletService mockWalletService;
     private BidService bidService;
 
@@ -40,7 +45,7 @@ class BidServiceTest {
     void setUp() {
         mockWalletService = new MockWalletService();
         mockWalletService.initializeDefaults();
-        bidService = new BidService(bidRepository, listingLookupService, mockWalletService);
+        bidService = new BidService(bidRepository, listingLookupService, mockWalletService, eventPublisher);
     }
 
     @Test
@@ -82,6 +87,8 @@ class BidServiceTest {
         assertEquals(new BigDecimal("150.00"), response.amount());
         assertEquals(new BigDecimal("850.00"), mockWalletService.getWalletState(buyerId).availableBalance());
         assertEquals(new BigDecimal("150.00"), mockWalletService.getWalletState(buyerId).lockedByListing().get(listingId));
+
+        verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
     }
 
     @Test
@@ -117,6 +124,7 @@ class BidServiceTest {
         )));
 
         verify(bidRepository, never()).save(any(Bid.class));
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -148,6 +156,7 @@ class BidServiceTest {
         )));
 
         verify(bidRepository, never()).save(any(Bid.class));
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -199,5 +208,7 @@ class BidServiceTest {
         assertEquals(new BigDecimal("500.00"), mockWalletService.getWalletState(previousBuyerId).availableBalance());
         assertTrue(mockWalletService.getWalletState(previousBuyerId).lockedByListing().isEmpty());
         assertEquals(new BigDecimal("250.00"), mockWalletService.getWalletState(newBuyerId).lockedByListing().get(listingId));
+
+        verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
     }
 }
