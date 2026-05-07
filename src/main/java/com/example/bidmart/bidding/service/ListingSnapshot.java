@@ -1,8 +1,9 @@
 package com.example.bidmart.bidding.service;
 
+import com.example.bidmart.listing.model.AuctionStatus;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Locale;
 import java.util.UUID;
 
 public record ListingSnapshot(
@@ -10,19 +11,12 @@ public record ListingSnapshot(
         UUID sellerId,
         BigDecimal startingPrice,
         LocalDateTime endTime,
-        String status
+        AuctionStatus auctionStatus,
+        BigDecimal currentHighestBid,
+        UUID currentHighestBidderId
 ) {
 
     public boolean isOpenAt(LocalDateTime currentTime) {
-        if (endTime != null && !endTime.isAfter(currentTime)) {
-            return false;
-        }
-
-        if (status == null || status.isBlank()) {
-            return true;
-        }
-
-        String normalized = status.trim().toUpperCase(Locale.ROOT);
-        return "OPEN".equals(normalized) || "ACTIVE".equals(normalized);
+        return auctionStatus.isAcceptingBids() && (endTime == null || endTime.isAfter(currentTime));
     }
 }

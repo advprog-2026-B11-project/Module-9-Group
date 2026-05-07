@@ -1,5 +1,6 @@
 package com.example.bidmart.listing.controller;
 
+import com.example.bidmart.listing.model.AuctionStatus;
 import com.example.bidmart.listing.model.Listing;
 import com.example.bidmart.listing.service.ListingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +40,7 @@ class ListingControllerTest {
         listing.setTitle("Test");
         listing.setStartingPrice(new BigDecimal("100"));
         listing.setEndTime(LocalDateTime.now().plusHours(1));
-        listing.setStatus("CLOSED");
+        listing.setStatus(AuctionStatus.CLOSED);
     }
 
     @Test

@@ -67,7 +67,11 @@ public class StandardBidValidatorImpl implements BidRuleValidator {
     }
 
     private void validateAuctionIsOpen(ListingSnapshot listing) {
-        if (!listing.isOpenAt(LocalDateTime.now())) {
+        if (!listing.auctionStatus().isAcceptingBids()) {
+            throw new BidValidationException(
+                    "Auction sudah ditutup (status: " + listing.auctionStatus() + ")");
+        }
+        if (listing.endTime() != null && !listing.endTime().isAfter(LocalDateTime.now())) {
             throw new BidValidationException(
                     "Listing sudah tidak aktif atau waktu lelang telah berakhir.");
         }

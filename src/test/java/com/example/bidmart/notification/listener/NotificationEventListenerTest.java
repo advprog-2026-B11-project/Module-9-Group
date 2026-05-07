@@ -2,6 +2,7 @@ package com.example.bidmart.notification.listener;
 
 import com.example.bidmart.common.event.AuctionWonEvent;
 import com.example.bidmart.common.event.BidPlacedEvent;
+import com.example.bidmart.common.event.OutbidEvent;
 import com.example.bidmart.notification.service.NotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,6 +55,22 @@ class NotificationEventListenerTest {
         verify(notificationService, times(1)).createNotification(
                 eq(buyerId),
                 eq("NEW_BID"),
+                anyString()
+        );
+    }
+
+    @Test
+    void handleOutbid_success() {
+        UUID listingId = UUID.randomUUID();
+        UUID outbidUserId = UUID.randomUUID();
+        BigDecimal newHighestBid = new BigDecimal("75000.00");
+        OutbidEvent event = new OutbidEvent(listingId, outbidUserId, newHighestBid);
+
+        notificationEventListener.handleOutbid(event);
+
+        verify(notificationService, times(1)).createNotification(
+                eq(outbidUserId),
+                eq("OUTBID"),
                 anyString()
         );
     }

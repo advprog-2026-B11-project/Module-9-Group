@@ -1,0 +1,992 @@
+{
+  "info": {
+    "name": "BidMart API - Complete",
+    "description": "Koleksi lengkap API BidMart. Urutan penggunaan:\n1. Auth: Register → Login (token otomatis tersimpan)\n2. Wallet: Create Wallet → Top Up\n3. Listing: Create Listing (sebagai seller)\n4. Bidding: Place Bid (sebagai buyer)\n5. Cek Notification & Order setelah auction selesai",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.0.0"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "listingId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "orderId", "value": "", "type": "string" },
+    { "key": "sessionId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "description": "Autentikasi pengguna. Mulai dari sini. Token JWT otomatis tersimpan setelah login.",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.accessToken) {",
+                  "        pm.collectionVariables.set('token', res.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', res.refreshToken);",
+                  "        pm.collectionVariables.set('userId', res.userId || '');",
+                  "        console.log('✅ Registered & token saved');",
+                  "    }",
+                  "    pm.test('Register berhasil (201)', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"testuser@example.com\",\n  \"displayName\": \"Test User\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Daftarkan akun baru. Token otomatis tersimpan ke collection variable 'token'."
+          }
+        },
+        {
+          "name": "Register (Seller)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Register seller berhasil (201)', () => pm.response.to.have.status(201));",
+                  "    console.log('✅ Seller registered. Sekarang login dengan akun seller untuk buat listing.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"seller01\",\n  \"email\": \"seller01@example.com\",\n  \"displayName\": \"Seller Satu\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register akun seller terpisah. Gunakan untuk buat listing lelang."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.mfaRequired) {",
+                  "        pm.collectionVariables.set('token', res.tempToken);",
+                  "        console.log('⚠️ MFA required. Gunakan endpoint Verify MFA dengan tempToken ini.');",
+                  "    } else if (res.accessToken) {",
+                  "        pm.collectionVariables.set('token', res.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', res.refreshToken);",
+                  "        console.log('✅ Login berhasil. Token tersimpan otomatis.');",
+                  "    }",
+                  "    pm.test('Login berhasil (200)', () => pm.response.to.have.status(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"testuser\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login dengan username atau email. Token JWT otomatis tersimpan.\nJika MFA aktif, response berisi tempToken — gunakan endpoint Verify MFA."
+          }
+        },
+        {
+          "name": "Login (Seller)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.accessToken) {",
+                  "        pm.collectionVariables.set('token', res.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', res.refreshToken);",
+                  "        console.log('✅ Login seller berhasil. Token seller tersimpan. Sekarang buat wallet & listing.');",
+                  "    }",
+                  "    pm.test('Login seller berhasil (200)', () => pm.response.to.have.status(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"seller01\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login sebagai seller. Token seller tersimpan — gunakan untuk buat listing."
+          }
+        },
+        {
+          "name": "Verify MFA",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tempToken\": \"{{token}}\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-mfa",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-mfa"]
+            },
+            "description": "Verifikasi kode MFA (TOTP/email). Gunakan setelah login jika mfaRequired=true.\ntempToken dari response login sudah tersimpan di variabel 'token'."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('token', res.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', res.refreshToken);",
+                  "    console.log('✅ Token diperbarui.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Perbarui access token menggunakan refresh token. Token baru otomatis tersimpan."
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify?token=EMAIL_VERIFICATION_TOKEN_HERE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify"],
+              "query": [{ "key": "token", "value": "EMAIL_VERIFICATION_TOKEN_HERE" }]
+            },
+            "description": "Verifikasi email dengan token yang dikirim ke email. Ganti token dengan yang diterima."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 User",
+      "description": "Manajemen profil pengguna.",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) pm.collectionVariables.set('userId', res.id);",
+                  "    console.log('✅ UserId tersimpan: ' + res.id);",
+                  "    pm.test('Get profile berhasil (200)', () => pm.response.to.have.status(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Ambil profil user yang sedang login. userId otomatis tersimpan ke variabel."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Display Name\",\n  \"shippingAddress\": \"Jl. Contoh No. 123, Jakarta\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Update profil user yang sedang login."
+          }
+        },
+        {
+          "name": "Delete My Account",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "⚠️ Hapus akun sendiri. Tidak bisa di-undo!"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔑 Sessions",
+      "description": "Manajemen sesi aktif pengguna.",
+      "item": [
+        {
+          "name": "Get My Sessions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.length > 0) {",
+                  "        pm.collectionVariables.set('sessionId', res[0].id);",
+                  "        console.log('✅ SessionId tersimpan: ' + res[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions"]
+            },
+            "description": "Lihat semua sesi aktif. SessionId pertama otomatis tersimpan ke variabel."
+          }
+        },
+        {
+          "name": "Revoke Session",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}"]
+            },
+            "description": "Cabut sesi tertentu. Gunakan sessionId dari endpoint Get My Sessions."
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Wallet",
+      "description": "Manajemen dompet dan saldo. Buat wallet dulu sebelum bisa bid.",
+      "item": [
+        {
+          "name": "Create Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "register"]
+            },
+            "description": "Buat wallet untuk user. Jalankan Get My Profile dulu untuk mendapatkan userId."
+          }
+        },
+        {
+          "name": "Get Balance",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "balance"]
+            },
+            "description": "Cek saldo wallet (balanceAvailable dan balanceLocked)."
+          }
+        },
+        {
+          "name": "Top Up",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/{{userId}}/top-up",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "{{userId}}", "top-up"]
+            },
+            "description": "Top up saldo wallet sebesar amount. Jalankan Get My Profile dulu untuk userId."
+          }
+        },
+        {
+          "name": "Withdraw",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/withdraw",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "withdraw"]
+            },
+            "description": "Tarik saldo dari wallet ke rekening bank."
+          }
+        },
+        {
+          "name": "Get Transaction History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "transactions"]
+            },
+            "description": "Lihat riwayat semua transaksi wallet (TOPUP, HOLD, REFUND, PAYMENT, WITHDRAWAL)."
+          }
+        },
+        {
+          "name": "Confirm Delivery (Seller)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sellerId\": \"SELLER_USER_ID_HERE\",\n  \"amount\": 5000000,\n  \"listingId\": \"{{listingId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/confirm-delivery",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "confirm-delivery"]
+            },
+            "description": "Konfirmasi pengiriman barang — dana masuk ke wallet seller."
+          }
+        },
+        {
+          "name": "[Admin] Get All Wallets",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallet/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "wallet", "list"]
+            },
+            "description": "⚠️ Hanya untuk ADMIN. Lihat semua wallet di sistem."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Listing",
+      "description": "Manajemen listing lelang. Login sebagai seller dulu sebelum buat listing.",
+      "item": [
+        {
+          "name": "Create Listing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) {",
+                  "        pm.collectionVariables.set('listingId', res.id);",
+                  "        console.log('✅ ListingId tersimpan: ' + res.id);",
+                  "    }",
+                  "    pm.test('Create listing berhasil', () => pm.response.to.have.status(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"00000000-0000-0000-0000-000000000001\",\n  \"title\": \"Laptop Gaming Asus ROG\",\n  \"description\": \"Laptop gaming kondisi sangat baik, baterai masih bagus\",\n  \"imageUrl\": \"https://example.com/laptop.jpg\",\n  \"startingPrice\": 5000000,\n  \"reservePrice\": 8000000,\n  \"endTime\": \"2026-06-01T18:00:00\",\n  \"auctionType\": \"ENGLISH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings"]
+            },
+            "description": "Buat listing lelang baru sebagai seller. ListingId otomatis tersimpan ke variabel.\nPastikan sudah login sebagai seller dan endTime lebih dari sekarang."
+          }
+        },
+        {
+          "name": "Create Listing (Expire Soon - untuk test anti-sniping)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) {",
+                  "        pm.collectionVariables.set('listingId', res.id);",
+                  "        console.log('✅ Listing expire-soon tersimpan: ' + res.id);",
+                  "        console.log('⏰ Bid sekarang untuk trigger anti-sniping (2 menit window)!');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"00000000-0000-0000-0000-000000000001\",\n  \"title\": \"[TEST] Item Anti-Sniping\",\n  \"description\": \"Listing untuk test anti-sniping, expire dalam 1 menit\",\n  \"startingPrice\": 100000,\n  \"reservePrice\": 50000,\n  \"endTime\": \"2026-05-08T00:01:00\",\n  \"auctionType\": \"ENGLISH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings"]
+            },
+            "description": "Buat listing yang hampir expire untuk test anti-sniping.\nUbah endTime ke 1-2 menit dari sekarang, lalu langsung bid."
+          }
+        },
+        {
+          "name": "Get All Listings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings"]
+            },
+            "description": "Ambil semua listing. Tidak perlu auth."
+          }
+        },
+        {
+          "name": "Get Listing By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings", "{{listingId}}"]
+            },
+            "description": "Ambil detail listing. Cek status, currentHighestBid, endTime."
+          }
+        },
+        {
+          "name": "Update Listing",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Laptop Gaming Asus ROG - Updated\",\n  \"description\": \"Deskripsi diperbarui\",\n  \"startingPrice\": 5000000,\n  \"reservePrice\": 9000000,\n  \"endTime\": \"2026-06-15T18:00:00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings", "{{listingId}}"]
+            },
+            "description": "Update listing. Hanya bisa saat status DRAFT atau belum ada bid."
+          }
+        },
+        {
+          "name": "Delete Listing",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings", "{{listingId}}"]
+            },
+            "description": "Hapus listing. Hanya bisa saat tidak ada bid aktif."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔨 Bidding",
+      "description": "Penawaran lelang. Pastikan sudah: Login sebagai buyer → Buat wallet → Top up → Ada listing aktif.",
+      "item": [
+        {
+          "name": "Place Bid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Bid berhasil (201)', () => pm.response.to.have.status(201));",
+                  "    console.log('✅ Bid berhasil ditempatkan!');",
+                  "} else if (pm.response.code === 409) {",
+                  "    pm.test('Race condition terdeteksi (409)', () => pm.response.to.have.status(409));",
+                  "    console.log('⚠️ Race condition! Coba lagi.');",
+                  "} else if (pm.response.code === 422) {",
+                  "    console.log('❌ Saldo tidak cukup. Top up dulu!');",
+                  "} else if (pm.response.code === 400) {",
+                  "    const res = pm.response.json();",
+                  "    console.log('❌ Bid ditolak: ' + res.message);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"{{listingId}}\",\n  \"amount\": 5500000,\n  \"proxyBid\": false,\n  \"proxyMaxLimit\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bids",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids"]
+            },
+            "description": "Tempatkan bid. Pastikan amount > startingPrice dan > currentHighestBid.\nResponse 201 = sukses, 409 = race condition, 422 = saldo kurang, 400 = validasi gagal."
+          }
+        },
+        {
+          "name": "Place Proxy Bid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Proxy bid berhasil (201)', () => pm.response.to.have.status(201));",
+                  "    console.log('✅ Proxy bid! Dana di-hold sesuai proxyMaxLimit.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"{{listingId}}\",\n  \"amount\": 5500000,\n  \"proxyBid\": true,\n  \"proxyMaxLimit\": 9000000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bids",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids"]
+            },
+            "description": "Proxy bid: sistem otomatis bid sampai proxyMaxLimit.\nDana yang di-hold = proxyMaxLimit, bukan amount."
+          }
+        },
+        {
+          "name": "Get Bids By Listing",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/bids/listing/{{listingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids", "listing", "{{listingId}}"]
+            },
+            "description": "Lihat semua bid pada listing, diurutkan dari terbaru."
+          }
+        },
+        {
+          "name": "Get Highest Bid",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/bids/listing/{{listingId}}/highest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids", "listing", "{{listingId}}", "highest"]
+            },
+            "description": "Cek bid tertinggi saat ini pada listing."
+          }
+        },
+        {
+          "name": "Get Minimum Next Bid",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/bids/listing/{{listingId}}/minimum-bid",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids", "listing", "{{listingId}}", "minimum-bid"]
+            },
+            "description": "Cek minimum bid yang diperbolehkan selanjutnya (berdasarkan EnglishAuctionStrategy)."
+          }
+        },
+        {
+          "name": "Get My Bids",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/bids/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids", "me"]
+            },
+            "description": "Lihat semua bid yang pernah saya tempatkan."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notification",
+      "description": "Notifikasi pengguna. Otomatis terbuat saat BidPlaced, Outbid, AuctionWon.",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.length > 0) {",
+                  "        pm.collectionVariables.set('notificationId', res[0].id);",
+                  "        console.log('✅ NotificationId tersimpan: ' + res[0].id);",
+                  "        console.log('📬 Jumlah notifikasi: ' + res.length);",
+                  "    } else {",
+                  "        console.log('📭 Belum ada notifikasi. Coba bid dulu!');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "user", "{{userId}}"]
+            },
+            "description": "Ambil semua notifikasi. Jalankan Get My Profile dulu untuk userId.\nTipe notifikasi: NEW_BID, OUTBID, AUCTION_WON."
+          }
+        },
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/user/{{userId}}/unread",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "user", "{{userId}}", "unread"]
+            },
+            "description": "Ambil notifikasi yang belum dibaca saja."
+          }
+        },
+        {
+          "name": "Mark As Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "{{notificationId}}", "read"]
+            },
+            "description": "Tandai notifikasi sebagai sudah dibaca."
+          }
+        },
+        {
+          "name": "Mark All As Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/user/{{userId}}/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "user", "{{userId}}", "read-all"]
+            },
+            "description": "Tandai semua notifikasi sebagai sudah dibaca."
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "{{notificationId}}"]
+            },
+            "description": "Hapus notifikasi tertentu."
+          }
+        },
+        {
+          "name": "[Test] Create Notification Manual",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"TEST\",\n  \"message\": \"Ini notifikasi test manual\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/test-create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "test-create"]
+            },
+            "description": "Buat notifikasi manual untuk testing. Tidak perlu tunggu event dari bidding."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Order",
+      "description": "Pesanan pasca lelang. Order otomatis terbuat saat AuctionWonEvent diterima.",
+      "item": [
+        {
+          "name": "Get My Orders (as Buyer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.length > 0) {",
+                  "        pm.collectionVariables.set('orderId', res[0].id);",
+                  "        console.log('✅ OrderId tersimpan: ' + res[0].id);",
+                  "        console.log('📦 Jumlah order: ' + res.length);",
+                  "    } else {",
+                  "        console.log('📭 Belum ada order. Menangkan lelang dulu!');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/buyer/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "buyer", "{{userId}}"]
+            },
+            "description": "Lihat semua order sebagai buyer. OrderId pertama otomatis tersimpan.\nOrder terbuat otomatis saat memenangkan lelang."
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}", "status"]
+            },
+            "description": "Update status order. Status yang umum: CREATED → CONFIRMED → SHIPPED → DELIVERED."
+          }
+        },
+        {
+          "name": "Update Tracking Number (Seller)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackingNumber\": \"JNE-123456789\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/tracking",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}", "tracking"]
+            },
+            "description": "Seller input nomor resi pengiriman. Status otomatis jadi SHIPPED."
+          }
+        },
+        {
+          "name": "[Test] Create Order Manual",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"{{listingId}}\",\n  \"buyerId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/test-create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "test-create"]
+            },
+            "description": "Buat order manual untuk testing. Tidak perlu tunggu auction selesai."
+          }
+        },
+        {
+          "name": "Delete Order",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            },
+            "description": "Hapus order."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🧪 Test Flows",
+      "description": "Panduan urutan request untuk test end-to-end. Jalankan berurutan!",
+      "item": [
+        {
+          "name": "📖 BACA INI DULU",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["listings"]
+            },
+            "description": "=== HAPPY PATH FLOW ===\n\nUrutan untuk test lengkap:\n\n1. Auth > Register (buyer)\n2. Auth > Register (Seller)\n3. Auth > Login (Seller) → token seller tersimpan\n4. User > Get My Profile → userId seller tersimpan\n5. Wallet > Create Wallet\n6. Listing > Create Listing → listingId tersimpan\n7. Auth > Login (buyer) → token buyer tersimpan\n8. User > Get My Profile → userId buyer tersimpan\n9. Wallet > Create Wallet\n10. Wallet > Top Up (10jt)\n11. Bidding > Get Minimum Next Bid → cek minimum\n12. Bidding > Place Bid (amount > startingPrice)\n13. Notification > Get My Notifications → cek NEW_BID muncul\n14. Wallet > Get Balance → cek balanceLocked bertambah\n15. Tunggu auction expire ATAU ubah endTime ke masa lalu\n16. Order > Get My Orders → cek order terbuat otomatis\n17. Notification > Get My Notifications → cek AUCTION_WON muncul\n18. Wallet > Get Balance → cek balanceLocked berkurang (settled)\n\n=== ANTI-SNIPING TEST ===\n1. Login seller → buat listing endTime 1-2 menit dari sekarang\n2. Login buyer → bid sebelum waktu habis\n3. Get Listing By ID → cek endTime bertambah 2 menit & status EXTENDED\n\n=== OUTBID TEST ===\n1. Buyer A bid 5.5jt\n2. Login Buyer B → bid 6jt\n3. Get Notifications Buyer A → cek OUTBID muncul\n4. Get Balance Buyer A → cek hold di-release"
+          }
+        }
+      ]
+    }
+  ]
+}

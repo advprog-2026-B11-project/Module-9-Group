@@ -2,16 +2,23 @@ package com.example.bidmart.bidding.service;
 
 import com.example.bidmart.bidding.dto.BidResponse;
 import com.example.bidmart.bidding.dto.CreateBidRequest;
-import com.example.bidmart.bidding.event.OutbidEvent;
 import com.example.bidmart.bidding.exception.BidValidationException;
 import com.example.bidmart.bidding.exception.ResourceNotFoundException;
 import com.example.bidmart.bidding.model.Bid;
 import com.example.bidmart.bidding.repository.BidRepository;
+import com.example.bidmart.bidding.strategy.AuctionStrategy;
+import com.example.bidmart.bidding.strategy.AuctionStrategyRegistry;
+import com.example.bidmart.bidding.strategy.ValidationResult;
 import com.example.bidmart.bidding.validator.BidRuleValidator;
+import com.example.bidmart.common.event.AuctionExtendedEvent;
 import com.example.bidmart.common.event.BidPlacedEvent;
+import com.example.bidmart.common.event.OutbidEvent;
+import com.example.bidmart.listing.model.AuctionStatus;
+import com.example.bidmart.listing.model.AuctionType;
 import com.example.bidmart.listing.model.Listing;
 import com.example.bidmart.listing.service.ListingService;
 import com.example.bidmart.wallet.service.WalletService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,14 +48,23 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BidServiceTest {
 
-    @Mock private BidRepository            bidRepository;
-    @Mock private ListingService           listingService;
-    @Mock private WalletService            walletService;
-    @Mock private BidRuleValidator         bidRuleValidator;
+    @Mock private BidRepository             bidRepository;
+    @Mock private ListingService            listingService;
+    @Mock private WalletService             walletService;
+    @Mock private BidRuleValidator          bidRuleValidator;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private AuctionStrategyRegistry   strategyRegistry;
+    @Mock private AuctionStrategy           auctionStrategy;
 
     @InjectMocks
     private BidService bidService;
+
+    @BeforeEach
+    void setUpDefaultStrategy() {
+        lenient().when(strategyRegistry.getStrategy(any(AuctionType.class))).thenReturn(auctionStrategy);
+        lenient().when(auctionStrategy.validateBid(any(), any())).thenReturn(ValidationResult.ok());
+        lenient().when(auctionStrategy.requiresFundHolding()).thenReturn(true);
+    }
 
     private Listing activeListing(UUID id, UUID sellerId, BigDecimal startingPrice) {
         Listing listing = new Listing();
@@ -55,7 +72,7 @@ class BidServiceTest {
         listing.setSellerId(sellerId);
         listing.setStartingPrice(startingPrice);
         listing.setEndTime(LocalDateTime.now().plusHours(2));
-        listing.setStatus("OPEN");
+        listing.setStatus(AuctionStatus.ACTIVE);
         return listing;
     }
 
@@ -93,7 +110,7 @@ class BidServiceTest {
             BigDecimal amount = new BigDecimal("150.00");
             CreateBidRequest request = new CreateBidRequest(listingId, amount, false, null);
 
-            when(listingService.getListingById(listingId))
+            when(listingService.getListingByIdWithLock(listingId))
                     .thenReturn(Optional.of(activeListing(listingId, sellerId, new BigDecimal("100.00"))));
             when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId))
                     .thenReturn(Optional.empty());
@@ -110,7 +127,7 @@ class BidServiceTest {
 
             InOrder seq = inOrder(bidRuleValidator, listingService, bidRepository, walletService);
             seq.verify(bidRuleValidator).validateRequest(request, buyerId);
-            seq.verify(listingService).getListingById(listingId);
+            seq.verify(listingService).getListingByIdWithLock(listingId);
             seq.verify(bidRepository).findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId);
             seq.verify(bidRuleValidator).validateBidContext(eq(buyerId), any(), eq(amount), any());
             seq.verify(walletService).reserveBidFunds(buyerId, listingId, amount);
@@ -132,7 +149,7 @@ class BidServiceTest {
                     .isInstanceOf(BidValidationException.class)
                     .hasMessageContaining("Amount wajib lebih dari 0.");
 
-            verify(listingService, never()).getListingById(any());
+            verify(listingService, never()).getListingByIdWithLock(any());
             verify(bidRepository, never()).findTopByListingIdOrderByAmountDescCreatedAtAsc(any());
             verify(bidRuleValidator, never()).validateBidContext(any(), any(), any(), any());
             verify(walletService,   never()).reserveBidFunds(any(), any(), any());
@@ -147,7 +164,7 @@ class BidServiceTest {
             UUID sellerId  = buyerId;
             CreateBidRequest request = new CreateBidRequest(listingId, new BigDecimal("100.00"), false, null);
 
-            when(listingService.getListingById(listingId))
+            when(listingService.getListingByIdWithLock(listingId))
                     .thenReturn(Optional.of(activeListing(listingId, sellerId, new BigDecimal("50.00"))));
             when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId))
                     .thenReturn(Optional.empty());
@@ -169,7 +186,7 @@ class BidServiceTest {
             UUID buyerId   = UUID.randomUUID();
             CreateBidRequest request = new CreateBidRequest(listingId, new BigDecimal("100.00"), false, null);
 
-            when(listingService.getListingById(listingId)).thenReturn(Optional.empty());
+            when(listingService.getListingByIdWithLock(listingId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> bidService.placeBid(buyerId, request))
                     .isInstanceOf(ResourceNotFoundException.class)
@@ -192,7 +209,7 @@ class BidServiceTest {
 
             Bid previousByBuyer = regularBid(listingId, buyerId, previousAmount);
 
-            when(listingService.getListingById(listingId))
+            when(listingService.getListingByIdWithLock(listingId))
                     .thenReturn(Optional.of(activeListing(listingId, UUID.randomUUID(), new BigDecimal("100.00"))));
             when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId))
                     .thenReturn(Optional.of(previousByBuyer));
@@ -220,7 +237,7 @@ class BidServiceTest {
 
             Bid previousHighest = regularBid(listingId, previousBuyerId, previousAmount);
 
-            when(listingService.getListingById(listingId))
+            when(listingService.getListingByIdWithLock(listingId))
                     .thenReturn(Optional.of(activeListing(listingId, UUID.randomUUID(), new BigDecimal("100.00"))));
             when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId))
                     .thenReturn(Optional.of(previousHighest));
@@ -246,7 +263,7 @@ class BidServiceTest {
             BigDecimal proxyMaxLimit = new BigDecimal("500.00");
             CreateBidRequest request = new CreateBidRequest(listingId, amount, true, proxyMaxLimit);
 
-            when(listingService.getListingById(listingId))
+            when(listingService.getListingByIdWithLock(listingId))
                     .thenReturn(Optional.of(activeListing(listingId, UUID.randomUUID(), new BigDecimal("50.00"))));
             when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId))
                     .thenReturn(Optional.empty());
@@ -275,7 +292,7 @@ class BidServiceTest {
 
             Bid previousProxyBid = proxyBid(listingId, buyerId, new BigDecimal("200.00"), new BigDecimal("500.00"));
 
-            when(listingService.getListingById(listingId))
+            when(listingService.getListingByIdWithLock(listingId))
                     .thenReturn(Optional.of(activeListing(listingId, UUID.randomUUID(), new BigDecimal("100.00"))));
             when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId))
                     .thenReturn(Optional.of(previousProxyBid));
@@ -287,6 +304,95 @@ class BidServiceTest {
             bidService.placeBid(buyerId, request);
 
             verify(walletService, never()).reserveBidFunds(any(), any(), any());
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
+        }
+
+        @Test
+        void bid_onExtendedListing_succeeds() {
+            UUID listingId = UUID.randomUUID();
+            UUID buyerId   = UUID.randomUUID();
+            UUID sellerId  = UUID.randomUUID();
+            BigDecimal amount = new BigDecimal("150.00");
+            CreateBidRequest request = new CreateBidRequest(listingId, amount, false, null);
+
+            Listing listing = activeListing(listingId, sellerId, new BigDecimal("100.00"));
+            listing.setStatus(AuctionStatus.EXTENDED);
+
+            when(listingService.getListingByIdWithLock(listingId)).thenReturn(Optional.of(listing));
+            when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId)).thenReturn(Optional.empty());
+            when(bidRepository.findTopByListingIdAndBuyerIdOrderByCreatedAtDesc(listingId, buyerId)).thenReturn(Optional.empty());
+            when(bidRepository.save(any(Bid.class))).thenAnswer(inv -> regularBid(listingId, buyerId, amount));
+
+            BidResponse response = bidService.placeBid(buyerId, request);
+
+            assertThat(response.listingId()).isEqualTo(listingId);
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
+        }
+
+        @Test
+        void bid_onClosedListing_throwsBidValidationException() {
+            UUID listingId = UUID.randomUUID();
+            UUID buyerId   = UUID.randomUUID();
+            UUID sellerId  = UUID.randomUUID();
+            CreateBidRequest request = new CreateBidRequest(listingId, new BigDecimal("150.00"), false, null);
+
+            Listing listing = activeListing(listingId, sellerId, new BigDecimal("100.00"));
+            listing.setStatus(AuctionStatus.CLOSED);
+
+            when(listingService.getListingByIdWithLock(listingId)).thenReturn(Optional.of(listing));
+            when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId)).thenReturn(Optional.empty());
+            doThrow(new BidValidationException("Auction sudah ditutup (status: CLOSED)"))
+                    .when(bidRuleValidator).validateBidContext(any(), any(), any(), any());
+
+            assertThatThrownBy(() -> bidService.placeBid(buyerId, request))
+                    .isInstanceOf(BidValidationException.class)
+                    .hasMessageContaining("ditutup");
+
+            verify(bidRepository, never()).save(any());
+            verify(eventPublisher, never()).publishEvent(any());
+        }
+
+        @Test
+        void bid_inAntiSnipingWindow_extendsAuctionAndPublishesEvent() {
+            UUID listingId = UUID.randomUUID();
+            UUID buyerId   = UUID.randomUUID();
+            UUID sellerId  = UUID.randomUUID();
+            BigDecimal amount = new BigDecimal("150.00");
+            CreateBidRequest request = new CreateBidRequest(listingId, amount, false, null);
+
+            Listing listing = activeListing(listingId, sellerId, new BigDecimal("100.00"));
+            listing.setEndTime(LocalDateTime.now().plusSeconds(90)); // within 2-minute sniping window
+
+            when(listingService.getListingByIdWithLock(listingId)).thenReturn(Optional.of(listing));
+            when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId)).thenReturn(Optional.empty());
+            when(bidRepository.findTopByListingIdAndBuyerIdOrderByCreatedAtDesc(listingId, buyerId)).thenReturn(Optional.empty());
+            when(bidRepository.save(any(Bid.class))).thenAnswer(inv -> regularBid(listingId, buyerId, amount));
+
+            bidService.placeBid(buyerId, request);
+
+            verify(eventPublisher).publishEvent(any(AuctionExtendedEvent.class));
+            verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
+        }
+
+        @Test
+        void bid_outsideAntiSnipingWindow_doesNotExtend() {
+            UUID listingId = UUID.randomUUID();
+            UUID buyerId   = UUID.randomUUID();
+            UUID sellerId  = UUID.randomUUID();
+            BigDecimal amount = new BigDecimal("150.00");
+            CreateBidRequest request = new CreateBidRequest(listingId, amount, false, null);
+
+            // endTime = now + 2 hours — well outside the 2-minute sniping window
+            Listing listing = activeListing(listingId, sellerId, new BigDecimal("100.00"));
+
+            when(listingService.getListingByIdWithLock(listingId)).thenReturn(Optional.of(listing));
+            when(bidRepository.findTopByListingIdOrderByAmountDescCreatedAtAsc(listingId)).thenReturn(Optional.empty());
+            when(bidRepository.findTopByListingIdAndBuyerIdOrderByCreatedAtDesc(listingId, buyerId)).thenReturn(Optional.empty());
+            when(bidRepository.save(any(Bid.class))).thenAnswer(inv -> regularBid(listingId, buyerId, amount));
+
+            bidService.placeBid(buyerId, request);
+
+            verify(eventPublisher, never()).publishEvent(any(AuctionExtendedEvent.class));
             verify(eventPublisher).publishEvent(any(BidPlacedEvent.class));
         }
     }

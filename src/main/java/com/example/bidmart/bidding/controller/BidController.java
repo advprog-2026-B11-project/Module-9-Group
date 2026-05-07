@@ -4,6 +4,7 @@ import com.example.bidmart.bidding.dto.BidResponse;
 import com.example.bidmart.bidding.dto.CreateBidRequest;
 import com.example.bidmart.bidding.service.BidService;
 import com.example.bidmart.user.service.UserService;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -47,6 +48,11 @@ public class BidController {
     @GetMapping("/listing/{listingId}/highest")
     public BidResponse getHighestBid(@PathVariable UUID listingId) {
         return bidService.getHighestBid(listingId);
+    }
+
+    @GetMapping("/listing/{listingId}/minimum-bid")
+    public ResponseEntity<BigDecimal> getMinimumNextBid(@PathVariable UUID listingId) {
+        return ResponseEntity.ok(bidService.getMinimumNextBid(listingId));
     }
 
     @GetMapping("/me")
