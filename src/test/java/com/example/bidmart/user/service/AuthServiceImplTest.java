@@ -11,7 +11,6 @@ import com.example.bidmart.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +21,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +40,6 @@ class AuthServiceImplTest {
     @Mock
     private MfaService mfaService;
 
-    @InjectMocks
     private AuthServiceImpl authService;
 
     private User mockUser;
@@ -54,6 +53,15 @@ class AuthServiceImplTest {
         mockUser.setPassword("encoded-password");
         mockUser.setRole(Role.USER);
         mockUser.setDisplayName("Test User");
+
+        authService = new AuthServiceImpl(
+                userRepository,
+                sessionRepository,
+                passwordEncoder,
+                jwtService,
+                sessionService,
+                mfaService
+        );
     }
 
     @Test
@@ -93,6 +101,19 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void register_shouldThrowExceptionIfEmailExists() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("newuser");
+        request.setEmail("existing@mail.com");
+
+        when(userRepository.existsByUsername("newuser")).thenReturn(false);
+        when(userRepository.existsByEmail("existing@mail.com")).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class, () -> authService.register(request));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void login_shouldReturnTokensWhenMfaDisabled() {
         LoginRequest request = new LoginRequest();
         request.setIdentifier("testuser");
@@ -109,7 +130,7 @@ class AuthServiceImplTest {
 
         assertFalse(response.isMfaRequired());
         assertEquals("access-token", response.getAccessToken());
-        verify(sessionService, times(1)).createSession(eq(mockUser), eq("refresh-token"), eq("Default Device"));
+        verify(sessionService, times(1)).createSession(eq(mockUser), eq("refresh-token"), eq("Test Device"));
     }
 
     @Test
@@ -188,5 +209,21 @@ class AuthServiceImplTest {
         assertTrue(session.isRevoked()); // Sesi lama di-revoke
         verify(sessionRepository, times(1)).save(session);
         verify(sessionService, times(1)).createSession(mockUser, "new-refresh-token", "Test Device");
+    }
+
+    @Test
+    void refreshToken_shouldThrowWhenExpired() {
+        String oldRefreshToken = "old-refresh-token";
+        Session session = new Session();
+        session.setUser(mockUser);
+        session.setRefreshToken(oldRefreshToken);
+        session.setRevoked(false);
+        session.setExpiresAt(Instant.now().minusSeconds(60));
+
+        when(sessionRepository.findByRefreshToken(oldRefreshToken)).thenReturn(Optional.of(session));
+
+        assertThrows(IllegalArgumentException.class, () -> authService.refreshToken(oldRefreshToken));
+        verify(sessionRepository, never()).save(any(Session.class));
+        verify(sessionService, never()).createSession(any(User.class), anyString(), anyString());
     }
 }

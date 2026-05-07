@@ -34,6 +34,9 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
+
     @Column(name = "is_email_verified", nullable = false)
     private boolean isEmailVerified = false;
 

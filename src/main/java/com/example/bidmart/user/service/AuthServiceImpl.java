@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -68,6 +67,10 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(LoginRequest request, String deviceInfo) {
         User user = findUserByIdentifier(request.getIdentifier());
 
+        if (!user.isActive()) {
+            throw new IllegalArgumentException("Account is deactivated.");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Invalid password.");
         }
@@ -77,13 +80,21 @@ public class AuthServiceImpl implements AuthService {
             return AuthResponse.builder().mfaRequired(true).tempToken(tempToken).build();
         }
 
-        return finalizeLogin(user, "Default Device");
+        String resolvedDeviceInfo = (deviceInfo == null || deviceInfo.isBlank())
+                ? "Unknown-Device"
+                : deviceInfo;
+        return finalizeLogin(user, resolvedDeviceInfo);
     }
     @Override
     @Transactional
     public AuthResponse verifyMfaLogin(MfaVerificationRequest request){
         String username = jwtService.extractUsername(request.getTempToken());
         User user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        if (!user.isActive()) {
+            throw new IllegalArgumentException("Account is deactivated.");
+        }
+
         if (!mfaService.verifyCode(user.getMfaSecret(), request.getCode())){
             throw new IllegalArgumentException("Invalid 2FA Code.");
         }

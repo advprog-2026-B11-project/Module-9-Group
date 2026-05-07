@@ -1,13 +1,18 @@
 package com.example.bidmart.user.service;
 
+import com.example.bidmart.common.event.UserDeactivatedEvent;
+import com.example.bidmart.common.event.UserRoleChangedEvent;
 import com.example.bidmart.user.dto.UpdateProfileRequest;
 import com.example.bidmart.user.dto.UserProfileResponse;
+import com.example.bidmart.user.model.Role;
 import com.example.bidmart.user.model.User;
 import com.example.bidmart.user.repository.SessionRepository;
 import com.example.bidmart.user.repository.UserRepository;
 
 import java.util.UUID;
+import java.time.Instant;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +21,14 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public UserServiceImpl(UserRepository userRepository, SessionRepository sessionRepository) {
+    public UserServiceImpl(UserRepository userRepository,
+                           SessionRepository sessionRepository,
+                           ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -42,6 +51,52 @@ public class UserServiceImpl implements UserService {
 
         User savedUser = userRepository.save(user);
         return mapToProfileResponse(savedUser);
+    }
+
+    @Override
+    @Transactional
+    public void deactivateUser(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        if (!user.isActive()) {
+            return;
+        }
+
+        user.setActive(false);
+        userRepository.save(user);
+        sessionRepository.deleteAllByUserId(user.getId());
+
+        eventPublisher.publishEvent(new UserDeactivatedEvent(
+                user.getId(),
+                user.getUsername(),
+                Instant.now()
+        ));
+    }
+
+    @Override
+    @Transactional
+    public void changeUserRole(UUID userId, Role newRole) {
+        if (newRole == null) {
+            throw new IllegalArgumentException("Role must be provided.");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        Role oldRole = user.getRole();
+        if (oldRole == newRole) {
+            return;
+        }
+
+        user.setRole(newRole);
+        userRepository.save(user);
+
+        eventPublisher.publishEvent(new UserRoleChangedEvent(
+                user.getId(),
+                oldRole.name(),
+                newRole.name()
+        ));
     }
 
     private UserProfileResponse mapToProfileResponse(User user) {
