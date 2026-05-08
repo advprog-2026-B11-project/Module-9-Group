@@ -9,6 +9,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class HoldBalanceRequest {
+    private UUID buyerId;
     private BigDecimal amount;
     private UUID listingId;
     private String idempotencyKey;

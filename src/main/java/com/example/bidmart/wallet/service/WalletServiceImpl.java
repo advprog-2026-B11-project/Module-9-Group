@@ -2,6 +2,7 @@ package com.example.bidmart.wallet.service;
 
 import com.example.bidmart.wallet.exception.*;
 import com.example.bidmart.wallet.model.Transaction;
+import com.example.bidmart.wallet.model.TransactionType;
 import com.example.bidmart.wallet.model.Wallet;
 import com.example.bidmart.wallet.repository.TransactionRepository;
 import com.example.bidmart.wallet.repository.WalletRepository;
@@ -56,10 +57,10 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().add(amount));
         wallet = walletRepository.save(wallet);
 
-        Transaction tx = new Transaction(wallet.getId(), "TOPUP", amount, null);
+        Transaction tx = new Transaction(wallet.getId(), TransactionType.TOPUP, amount, null);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
-        
+
         return wallet;
     }
 
@@ -101,7 +102,7 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceLocked(wallet.getBalanceLocked().add(additionalLock));
         wallet = walletRepository.save(wallet);
 
-        Transaction tx = new Transaction(wallet.getId(), "HOLD", additionalLock, refId);
+        Transaction tx = new Transaction(wallet.getId(), TransactionType.HOLD, additionalLock, refId);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
 
@@ -135,7 +136,7 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().add(actualRelease));
         wallet = walletRepository.save(wallet);
 
-        Transaction tx = new Transaction(wallet.getId(), "REFUND", actualRelease, refId);
+        Transaction tx = new Transaction(wallet.getId(), TransactionType.REFUND, actualRelease, refId);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
 
@@ -164,7 +165,7 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceLocked(wallet.getBalanceLocked().subtract(amount));
         wallet = walletRepository.save(wallet);
 
-        Transaction tx = new Transaction(wallet.getId(), "PAYMENT", amount, referenceId);
+        Transaction tx = new Transaction(wallet.getId(), TransactionType.PAYMENT, amount, referenceId);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
 
@@ -193,7 +194,7 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().subtract(amount));
         wallet = walletRepository.save(wallet);
 
-        Transaction tx = new Transaction(wallet.getId(), "WITHDRAWAL", amount, null);
+        Transaction tx = new Transaction(wallet.getId(), TransactionType.WITHDRAWAL, amount, null);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
 
@@ -204,6 +205,20 @@ public class WalletServiceImpl implements WalletService {
     public List<Transaction> getTransactionHistory(UUID userId) {
         Wallet wallet = getWalletByUserId(userId);
         return transactionRepository.findByWalletIdOrderByCreatedAtDesc(wallet.getId());
+    }
+
+    @Override
+    public Transaction getTransactionById(UUID transactionId, UUID userId) {
+        Wallet wallet = getWalletByUserId(userId);
+        Transaction transaction = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new InvalidRequestException("Transaksi tidak ditemukan."));
+        
+        // Validasi: transaksi harus milik user yang request
+        if (!transaction.getWalletId().equals(wallet.getId())) {
+            throw new UnauthorizedException("Anda tidak memiliki akses ke transaksi ini.");
+        }
+        
+        return transaction;
     }
 
     @Override
@@ -223,7 +238,7 @@ public class WalletServiceImpl implements WalletService {
         sellerWallet.setBalanceAvailable(sellerWallet.getBalanceAvailable().add(amount));
         sellerWallet = walletRepository.save(sellerWallet);
 
-        Transaction tx = new Transaction(sellerWallet.getId(), "INCOME", amount, referenceId);
+        Transaction tx = new Transaction(sellerWallet.getId(), TransactionType.INCOME, amount, referenceId);
         tx.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(tx);
 
@@ -241,9 +256,9 @@ public class WalletServiceImpl implements WalletService {
 
         BigDecimal held = BigDecimal.ZERO;
         for (Transaction tx : txs) {
-            if ("HOLD".equals(tx.getType())) {
+            if (TransactionType.HOLD.equals(tx.getType())) {
                 held = held.add(tx.getAmount());
-            } else if ("REFUND".equals(tx.getType()) || "PAYMENT".equals(tx.getType())) {
+            } else if (TransactionType.REFUND.equals(tx.getType()) || "PAYMENT".equals(tx.getType())) {
                 held = held.subtract(tx.getAmount());
             }
         }

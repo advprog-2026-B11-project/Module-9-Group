@@ -28,4 +28,5 @@ public interface WalletService {
     Wallet confirmDelivery(UUID sellerId, BigDecimal amount, String referenceId);
     Wallet confirmDelivery(UUID sellerId, BigDecimal amount, String referenceId, String idempotencyKey);
     List<Transaction> getTransactionHistory(UUID userId);
+    Transaction getTransactionById(UUID transactionId, UUID userId);
 }

@@ -2,6 +2,7 @@ package com.example.bidmart.wallet.service;
 
 import com.example.bidmart.wallet.exception.*;
 import com.example.bidmart.wallet.model.Transaction;
+import com.example.bidmart.wallet.model.TransactionType;
 import com.example.bidmart.wallet.model.Wallet;
 import com.example.bidmart.wallet.repository.TransactionRepository;
 import com.example.bidmart.wallet.repository.WalletRepository;
@@ -143,7 +144,7 @@ class WalletServiceTest {
 
         assertEquals(new BigDecimal("50000"), result.getBalanceAvailable());
         assertEquals(new BigDecimal("50000"), result.getBalanceLocked());
-        verify(transactionRepository).save(argThat(tx -> tx.getType().equals("HOLD")));
+        verify(transactionRepository).save(argThat(tx -> tx.getType().equals(TransactionType.HOLD)));
     }
 
     @Test
@@ -164,7 +165,7 @@ class WalletServiceTest {
         wallet.setBalanceLocked(new BigDecimal("50000"));
         
         // Mocking history transaksi agar calculateHeldForReference mengembalikan 50000
-        Transaction holdTx = new Transaction(wallet.getId(), "HOLD", new BigDecimal("50000"), listingId.toString());
+        Transaction holdTx = new Transaction(wallet.getId(), TransactionType.HOLD, new BigDecimal("50000"), listingId.toString());
 
         when(walletRepository.findByUserId(userId)).thenReturn(Optional.of(wallet));
         when(transactionRepository.findByWalletIdAndReferenceId(any(), anyString())).thenReturn(List.of(holdTx));
@@ -174,7 +175,7 @@ class WalletServiceTest {
 
         assertEquals(new BigDecimal("20000"), result.getBalanceLocked());
         assertEquals(new BigDecimal("30000"), result.getBalanceAvailable());
-        verify(transactionRepository).save(argThat(tx -> tx.getType().equals("REFUND")));
+        verify(transactionRepository).save(argThat(tx -> tx.getType().equals(TransactionType.REFUND)));
     }
 
     @Test
@@ -188,7 +189,7 @@ class WalletServiceTest {
         Wallet result = walletService.settlePayment(userId, paymentAmount, "REF-123");
 
         assertEquals(BigDecimal.ZERO, result.getBalanceLocked());
-        verify(transactionRepository).save(argThat(tx -> tx.getType().equals("PAYMENT")));
+        verify(transactionRepository).save(argThat(tx -> tx.getType().equals(TransactionType.PAYMENT)));
     }
 
     @Test
@@ -211,7 +212,7 @@ class WalletServiceTest {
         Wallet result = walletService.confirmDelivery(userId, income, "REF-INV");
 
         assertEquals(income, result.getBalanceAvailable());
-        verify(transactionRepository).save(argThat(tx -> tx.getType().equals("INCOME")));
+        verify(transactionRepository).save(argThat(tx -> tx.getType().equals(TransactionType.INCOME)));
     }
 
     @Test
