@@ -38,4 +38,14 @@ public class RoleController {
 
         return ResponseEntity.ok("Permission '" + permissionName + "' berhasil ditambahkan ke role '" + roleName + "'");
     }
+
+    @PostMapping
+    public ResponseEntity<Role> createRole(@RequestBody String roleName) {
+        if (roleRepository.findByName(roleName).isPresent()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Role newRole = new Role();
+        newRole.setName(roleName);
+        return ResponseEntity.ok(roleRepository.save(newRole));
+    }
 }
