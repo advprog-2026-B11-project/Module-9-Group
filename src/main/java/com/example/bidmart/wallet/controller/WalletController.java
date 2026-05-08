@@ -66,7 +66,7 @@ public class WalletController {
     ) {
         ensureCurrentUser(userId, authentication);
         UUID authenticatedUserId = resolveCurrentUserId(authentication);
-        Wallet wallet = walletService.topUp(authenticatedUserId, request.getAmount(), request.getIdempotencyKey());
+        Wallet wallet = walletService.topUp(authenticatedUserId, request);
 
         if (wallet == null) {
             return ResponseEntity.badRequest().build();
@@ -144,9 +144,7 @@ public class WalletController {
         UUID userId = resolveCurrentUserId(authentication);
 
         Wallet wallet = walletService.withdraw(
-                userId, 
-                request.getAmount(),  
-                request.getIdempotencyKey()
+                userId, request
         );
         
         return ResponseEntity.ok(convertToWalletResponse(wallet));

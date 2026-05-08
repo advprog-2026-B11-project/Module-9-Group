@@ -1,5 +1,7 @@
 package com.example.bidmart.wallet.service;
 
+import com.example.bidmart.wallet.dto.TopUpRequest;
+import com.example.bidmart.wallet.dto.WithdrawRequest;
 import com.example.bidmart.wallet.model.Transaction;
 import com.example.bidmart.wallet.model.Wallet;
 import java.math.BigDecimal;
@@ -11,10 +13,8 @@ public interface WalletService {
     Wallet getWalletByUserId(UUID userId);
     List<Wallet> findAll();
     
-    Wallet topUp(UUID userId, BigDecimal amount);
-    Wallet topUp(UUID userId, BigDecimal amount, String idempotencyKey);
-    Wallet withdraw(UUID userId, BigDecimal amount);
-    Wallet withdraw(UUID userId, BigDecimal amount, String idempotencyKey);
+    Wallet topUp(UUID userId, TopUpRequest request);
+    Wallet withdraw(UUID userId, WithdrawRequest request);
     
     // Bidding
     Wallet reserveBidFunds(UUID buyerId, UUID listingId, BigDecimal reserveTarget);
