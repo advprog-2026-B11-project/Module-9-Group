@@ -6,6 +6,7 @@ import com.example.bidmart.user.dto.RegisterRequest;
 import com.example.bidmart.user.model.Role;
 import com.example.bidmart.user.model.Session;
 import com.example.bidmart.user.model.User;
+import com.example.bidmart.user.repository.RoleRepository;
 import com.example.bidmart.user.repository.SessionRepository;
 import com.example.bidmart.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,19 +41,24 @@ class AuthServiceImplTest {
     private SessionService sessionService;
     @Mock
     private MfaService mfaService;
+    @Mock
+    private RoleRepository roleRepository;
 
     private AuthServiceImpl authService;
 
     private User mockUser;
+    private Role mockRole;
 
     @BeforeEach
     void setUp() {
+        mockRole = new Role(UUID.randomUUID(), "USER", new HashSet<>());
+
         mockUser = new User();
         mockUser.setId(UUID.randomUUID());
         mockUser.setUsername("testuser");
         mockUser.setEmail("test@mail.com");
         mockUser.setPassword("encoded-password");
-        mockUser.setRole(Role.USER);
+        mockUser.setRole(mockRole);
         mockUser.setDisplayName("Test User");
 
         authService = new AuthServiceImpl(
@@ -60,7 +67,8 @@ class AuthServiceImplTest {
                 passwordEncoder,
                 jwtService,
                 sessionService,
-                mfaService
+                mfaService,
+                roleRepository 
         );
     }
 
@@ -76,10 +84,12 @@ class AuthServiceImplTest {
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
         when(passwordEncoder.encode(request.getPassword())).thenReturn("encoded-password");
         
+        when(roleRepository.findByName("USER")).thenReturn(Optional.of(mockRole));
+        
         User savedUser = new User();
         savedUser.setUsername(request.getUsername());
         savedUser.setEmail(request.getEmail());
-        savedUser.setRole(Role.USER);
+        savedUser.setRole(mockRole);
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
         AuthResponse response = authService.register(request);
@@ -206,7 +216,7 @@ class AuthServiceImplTest {
         AuthResponse response = authService.refreshToken(oldRefreshToken);
 
         assertEquals("new-access-token", response.getAccessToken());
-        assertTrue(session.isRevoked()); // Sesi lama di-revoke
+        assertTrue(session.isRevoked());
         verify(sessionRepository, times(1)).save(session);
         verify(sessionService, times(1)).createSession(mockUser, "new-refresh-token", "Test Device");
     }
