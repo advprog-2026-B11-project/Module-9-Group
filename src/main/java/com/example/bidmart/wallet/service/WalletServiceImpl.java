@@ -20,6 +20,8 @@ public class WalletServiceImpl implements WalletService {
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
 
+    private static final BigDecimal MAX_TOPUP_AMOUNT = new BigDecimal("100000000");
+
     public WalletServiceImpl(WalletRepository walletRepository, TransactionRepository transactionRepository) {
         this.walletRepository = walletRepository;
         this.transactionRepository = transactionRepository;
@@ -52,6 +54,7 @@ public class WalletServiceImpl implements WalletService {
         if (existing.isPresent()) return existing.get();
 
         validateAmount(amount);
+        validateTopUpAmount(amount);
 
         Wallet wallet = getWalletByUserId(userId);
         wallet.setBalanceAvailable(wallet.getBalanceAvailable().add(amount));
@@ -157,9 +160,11 @@ public class WalletServiceImpl implements WalletService {
         validateAmount(amount);
 
         Wallet wallet = getWalletByUserId(userId);
-        if (wallet.getBalanceLocked().compareTo(amount) < 0) {
-            throw new InsufficientBalanceException(
-                    "Saldo terkunci tidak mencukupi. Dibutuhkan: " + amount + ", terkunci: " + wallet.getBalanceLocked());
+
+        BigDecimal heldForReference = calculateHeldForReference(wallet.getId(), referenceId);
+        if (amount.compareTo(heldForReference) > 0) {
+            throw new InvalidAmountException(
+                    "Jumlah settlement melebihi saldo yang ditahan. Ditahan: " + heldForReference + ", diminta: " + amount);
         }
 
         wallet.setBalanceLocked(wallet.getBalanceLocked().subtract(amount));
@@ -248,6 +253,13 @@ public class WalletServiceImpl implements WalletService {
     private void validateAmount(BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new InvalidAmountException("Jumlah harus lebih dari 0.");
+        }
+    }
+
+    private void validateTopUpAmount(BigDecimal amount) {
+        if (amount.compareTo(MAX_TOPUP_AMOUNT) > 0) {
+            throw new InvalidAmountException(
+                    "Jumlah top-up tidak boleh melebihi " + MAX_TOPUP_AMOUNT + ".");
         }
     }
 

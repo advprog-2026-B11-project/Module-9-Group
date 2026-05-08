@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -184,6 +185,16 @@ class WalletServiceTest {
         wallet.setBalanceLocked(new BigDecimal("50000"));
 
         when(walletRepository.findByUserId(userId)).thenReturn(Optional.of(wallet));
+        
+        Transaction holdTransaction = new Transaction(
+            wallet.getId(), 
+            TransactionType.HOLD,
+            paymentAmount, 
+            "REF-123"
+        );
+
+        when(transactionRepository.findByWalletIdAndReferenceId(eq(wallet.getId()), eq("REF-123")))
+                .thenReturn(List.of(holdTransaction));
         when(walletRepository.save(any(Wallet.class))).thenAnswer(i -> i.getArgument(0));
 
         Wallet result = walletService.settlePayment(userId, paymentAmount, "REF-123");
