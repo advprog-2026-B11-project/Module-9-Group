@@ -48,4 +48,23 @@ public class RoleController {
         newRole.setName(roleName);
         return ResponseEntity.ok(roleRepository.save(newRole));
     }
+
+    @DeleteMapping("/{roleName}/permissions/{permissionName}")
+    @Transactional
+    public ResponseEntity<String> revokePermission(
+            @PathVariable String roleName, 
+            @PathVariable String permissionName) {
+        
+        Role role = roleRepository.findByName(roleName)
+                .orElseThrow(() -> new IllegalArgumentException("Role tidak ditemukan"));
+        Permission permission = permissionRepository.findByName(permissionName)
+                .orElseThrow(() -> new IllegalArgumentException("Permission tidak ditemukan"));
+
+        if (role.getPermissions().contains(permission)) {
+            role.getPermissions().remove(permission);
+            roleRepository.save(role);
+            return ResponseEntity.ok("Permission '" + permissionName + "' berhasil dicabut dari role '" + roleName + "'");
+        }
+        return ResponseEntity.badRequest().body("Role tidak memiliki permission tersebut");
+    }
 }
