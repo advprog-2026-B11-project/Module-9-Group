@@ -35,8 +35,17 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/error").permitAll()
-                .requestMatchers("/api/wallet/**").permitAll()
-                .requestMatchers("/api/wallet/**").permitAll()
+                
+                .requestMatchers(
+                    "/api/wallet/hold",
+                    "/api/wallet/release",
+                    "/api/wallet/settle",
+                    "/api/wallet/confirm-delivery"
+                ).hasRole("INTERNAL_SERVICE")
+
+                // User endpoints wallet
+                .requestMatchers("/api/wallet/**").authenticated()
+                
                 .requestMatchers("/listings/**").permitAll()
                 .requestMatchers("/api/bids/mocks/**").permitAll()
                 .requestMatchers("/api/bids/**").permitAll()
