@@ -95,3 +95,32 @@ Setiap modul memiliki lapisan persistensi datanya sendiri untuk menjaga isolasi 
 Aplikasi BidMart dibangun dengan arsitektur cloud-native yang memisahkan sisi klien dan server. Front-end dikembangkan menggunakan Next.js dan di-hosting pada Global CDN agar dapat diakses dengan cepat dan aman oleh pengguna melalui peramban web (HTTPS). Sementara itu, pusat logika bisnis aplikasi dijalankan oleh backend berarsitektur modular monolith berbasis Spring Boot (Java 21). Backend ini di-deploy sebagai web service di platform Render untuk menerima dan merespons permintaan REST API dari frontend.
 Untuk penyimpanan data persisten, sistem ini menggunakan basis data PostgreSQL secara serverless di Neon Cloud yang terhubung dengan backend secara aman melalui protokol JDBC dengan enkripsi SSL. Seluruh infrastruktur ini dikelola secara otomatis melalui pipeline CI/CD di GitHub.
 
+
+
+## 2. The future architecture of the group B11
+Setelah melakukan Risk Storming pada arsitektur BidMart saat ini, kami mengidentifikasi sejumlah risiko signifikan yang dapat mengancam ketersediaan, skalabilitas, dan integritas data apabila sistem mengalami peningkatan beban besar (misalnya ribuan auction berjalan bersamaan dengan puluhan ribu bidder aktif secara bersamaan).
+
+
+### Risk Matrix pada Arsitektur Monolith Saat Ini
+Setelah melakukan Risk Storming pada arsitektur BidMart saat ini yang berbasis Spring Boot modular monolith, kami mengidentifikasi sejumlah risiko krusial yang mengancam ketersediaan, skalabilitas, dan integritas data saat sistem menghadapi lonjakan beban (misalnya ribuan auction dan puluhan ribu bidder aktif secara bersamaan). Berdasarkan matriks risiko, ancaman terbesar bermuara pada jalur transaksi utama dan keamanan. Dari sisi transaksi, race condition akibat penawaran serentak (bidding concurrency) dapat memicu kesalahan penentuan pemenang atau penahanan saldo ganda. Selain itu, inkonsistensi pada operasi Modul Wallet—seperti hold, release, atau settlement—berisiko fatal menyebabkan saldo negatif atau double spend. Dari segi keamanan dan aliran data, ketiadaan kontrol akses terpusat dapat meloloskan aksi pengguna yang tidak sah, sementara hilangnya event penting seperti BidPlaced atau WinnerDetermined akan membuat modul Katalog, Pesanan, dan Notifikasi gagal bereaksi. 
+
+
+
+
+
+
+### Future Architecture Diagram
+Berdasarkan hasil risk storming di atas, kami merancang ulang arsitektur kami.
+
+
+#### Future Context Diagram
+![alt](<img/ContextDiagramFuture.png>)
+
+
+#### Future Container Diagram
+![alt](<img/ContainerDiagramFuture.png>)
+
+
+Untuk memitigasi risiko-risiko di atas, future architecture BidMart dirancang ulang menjadi microservices. Perombakan ini dilakukan karena setiap modul memiliki karakteristik beban yang ketimpang: Modul Bidding menuntut pemrosesan yang sangat cepat, Modul Wallet mewajibkan jaminan integritas finansial absolut (zero error), sementara Modul Notification lebih ideal diproses secara asinkron. Sebagai solusi, tanggung jawab dipecah ke dalam layanan-layanan independen dengan database mandiri. API Gateway dan Auth Service diimplementasikan sebagai pusat validasi identitas di garda depan. Untuk menjaga integritas bidding, sistem menerapkan penguncian (lock) per listing dan mewajibkan panggilan sinkronus (sync call) ke Wallet Service guna menahan saldo secara atomik sebelum penawaran diterima. Sementara itu, alur kerja lintas layanan (cross-service workflow) ditangani menggunakan message broker yang tangguh, sehingga layanan pendukung dapat bereaksi secara asinkron tanpa memblokir performa utama sistem. 
+
+
