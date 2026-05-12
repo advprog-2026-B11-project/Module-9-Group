@@ -161,7 +161,54 @@ Pada tahap mitigation, tim menentukan solusi yang realistis untuk mengurangi ris
 
 
 
-== Commit message : "3. Explanation of risk storming of the group B11"
+## 4. Individual Work — Component Diagram & Code Diagrams
+Berikut adalah component diagram dan code diagram dari masing-masing modul.
+
+### 4.1 Bidding Module
+Modul Bidding bertanggung jawab atas seluruh mekanisme lelang dalam sistem BidMart. Modul ini menangani penempatan bid, validasi aturan lelang, strategi tipe auction, reservasi dana wallet, anti-sniping, penutupan auction otomatis, serta penerbitan domain events ke modul lain. Modul ini merupakan komponen paling kritis dalam sistem karena berinteraksi langsung dengan modul Catalog, Wallet, dan Order melalui internal Spring events.
+
+#### Component Diagram : Bidding Module
+Diagram ini menunjukkan bagaimana setiap komponen berinteraksi satu sama lain serta terdapat hubungan dengan modul eksternal (Catalog, Wallet, Auth).
+
+![Component Diagram Bidding](<img/ComponentDiagramBidding.png>)
+
+#### Code Diagram 1 : BidService Class Diagram
+Diagram berikut menampilkan class diagram dari BidService beserta seluruh dependensinya (C4 Level 4). BidService adalah pusat dari modul Bidding yang mengorkestrasikan seluruh alur penempatan bid, mulai dari validasi input, pengambilan data listing dengan pessimistic lock, validasi business rules, reservasi dana wallet, penyimpanan bid, anti-sniping extension, hingga penerbitan domain events.
+
+![Code Diagram 1 Bidding](<img/CodeDiagram1_Bidding.jpeg>)
+
+Method utama placeBid() dianotasi dengan @Retryable (maksimal 3 percobaan dengan backoff 50ms × 2) untuk menangani ObjectOptimisticLockingFailureException yang dapat terjadi saat banyak bidder bersaing secara bersamaan. Jika semua retry gagal, @Recover method akan melempar BidConflictException dengan pesan yang informatif kepada user.
+
+
+#### Code Diagram 2 : Bid Entity, DTOs & Repository
+Diagram berikut menampilkan class diagram dari Bid entity, DTO-DTO terkait (CreateBidRequest, BidResponse, ErrorResponse), dan BidRepository (C4 Level 4). Diagram ini menggambarkan struktur data yang menjadi fondasi dari modul Bidding, termasuk field-field database, annotations JPA, serta custom query methods pada repository.
+
+![Code Diagram 2 Bidding](<img/CodeDiagram2_Bidding.jpeg>)
+
+Bid entity memiliki method getReservedAmount() yang mengembalikan proxyMaxLimit jika bid adalah proxy bid, atau amount jika bukan. Nilai ini digunakan oleh WalletService untuk menentukan jumlah dana yang perlu di-reserve atau di-release saat terjadi outbid.
+
+
+#### Code Diagram 3 : Auction Strategy Pattern
+Diagram berikut menampilkan class diagram dari implementasi Strategy Pattern untuk mendukung berbagai tipe auction (C4 Level 4). Dengan pattern ini, BidMart dapat dengan mudah menambahkan tipe lelang baru (misalnya Dutch Auction atau Sealed Bid) tanpa mengubah kode BidService.
+
+
+![Code Diagram 3 Bidding](<img/CodeDiagram3_Bidding.jpeg>)
+
+AuctionStrategyRegistry menerima semua bean implementasi AuctionStrategy dari Spring container secara otomatis melalui constructor injection, lalu memetakannya ke Map<AuctionType, AuctionStrategy>. Saat ini terdapat satu implementasi aktif yaitu EnglishAuctionStrategy (open ascending-price auction) yang memerlukan fund holding (requiresFundHolding() = true) dan menghitung minimum bid berikutnya sebagai currentHighestBid + 1.
+
+
+#### Code Diagram 4 : BidRuleValidator & Domain Events
+Diagram berikut menampilkan class diagram dari BidRuleValidator (interface dan implementasinya), seluruh domain events yang diterbitkan oleh modul Bidding, BiddingEventListener, serta exception-exception yang dapat dilempar (C4 Level 4).
+
+![Code Diagram 4 Bidding](<img/CodeDiagram4_Bidding.jpeg>)
+
+
+BidRuleValidator menerapkan validasi dua fase yang terpisah secara sengaja:
+- Phase 1 (validateRequest) — validasi input murni tanpa I/O: null check, amount > 0, proxyMaxLimit ≥ amount. Fase ini dilakukan sebelum query apapun ke database agar sistem dapat gagal lebih awal (fail-fast)
+- Phase 2 (validateBidContext) — validasi business rules setelah data listing dan highest bid tersedia: buyer ≠ seller, auction masih open, bid > current highest bid
+
+
+Domain events yang diterbitkan oleh modul Bidding menggunakan Spring ApplicationEventPublisher dengan @TransactionalEventListener(AFTER_COMMIT) agar events hanya diterbitkan setelah transaksi database berhasil di-commit, mencegah terjadinya notifikasi palsu jika transaksi rollback.
 
 
 
