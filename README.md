@@ -95,3 +95,28 @@ Setiap modul memiliki lapisan persistensi datanya sendiri untuk menjaga isolasi 
 Aplikasi BidMart dibangun dengan arsitektur cloud-native yang memisahkan sisi klien dan server. Front-end dikembangkan menggunakan Next.js dan di-hosting pada Global CDN agar dapat diakses dengan cepat dan aman oleh pengguna melalui peramban web (HTTPS). Sementara itu, pusat logika bisnis aplikasi dijalankan oleh backend berarsitektur modular monolith berbasis Spring Boot (Java 21). Backend ini di-deploy sebagai web service di platform Render untuk menerima dan merespons permintaan REST API dari frontend.
 Untuk penyimpanan data persisten, sistem ini menggunakan basis data PostgreSQL secara serverless di Neon Cloud yang terhubung dengan backend secara aman melalui protokol JDBC dengan enkripsi SSL. Seluruh infrastruktur ini dikelola secara otomatis melalui pipeline CI/CD di GitHub.
 
+
+
+
+
+### Container Diagram Autentikasi & Manajemen Pengguna
+![Container Diagram user](<img/Container Diagram Autentikasi dan Manajemen Pengguna.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1NvWYGCrOJAlytABfcxlOuPqCsFCfL0iI/view?usp=sharing
+
+### Code Diagram
+#### 2FA
+![2FA](<img/Code Diagram 2FA.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1EJ_wxfaywynfzSRfTSQ_f5pmoO0-dBlL/view?usp=sharing
+#### Auth Service
+![Auth Service](<img/Code Diagram Auth Service.drawio.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1NEAjQURtmMyiCb5ZEcULDbZa_1ZVi8OP/view?usp=sharing
+#### Session Management
+![Session Management](<img/Code Diagram Session Management.drawio.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1ZcYVNuLfBnKHdu4FxXjpr5NNT-GcK68Y/view?usp=sharing
+#### User Profile Service
+![User Profile](<img/Code Diagram user Profile Service.drawio.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1ysNmiDcInMt4nBvUXqDZcalaIwkeJcCS/view?usp=sharing
+
+
+
+
