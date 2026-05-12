@@ -219,7 +219,7 @@ Repositori ini memuat dokumentasi arsitektur perangkat lunak untuk Modul **Order
 ## 1. Component Diagram
 Diagram komponen ini menunjukkan struktur internal dari modul Order dan Notifikasi, serta bagaimana kedua modul ini berinteraksi satu sama lain secara *asynchronous* melalui *Event Bus* (Spring ApplicationEventPublisher).
 
-![Component Diagram](Component%20Diagram%20(Order%20&%20Notification%20Modules).png)
+![Component Diagram](img/Component%20Diagram%20(Order%20&%20Notification%20Modules).png)
 
 ## 2. Code Diagrams (UML Class Diagrams)
 *Code Diagram* ini merepresentasikan secara detail elemen statis dari kode sumber (kelas, antarmuka, atribut, dan metode) yang menyusun masing-masing modul sesuai komit terakhir.
@@ -227,12 +227,12 @@ Diagram komponen ini menunjukkan struktur internal dari modul Order dan Notifika
 ### Modul Order
 Struktur kelas yang menangani entitas pesanan dan integrasi *event* dari sistem lelang.
 
-![UML Class Diagram - Order Module](UML%20Class%20Diagram_%20Order%20Module.png)
+![UML Class Diagram - Order Module](img/UML%20Class%20Diagram_%20Order%20Module.png)
 
 ### Modul Notification
 Struktur kelas yang bertanggung jawab atas penangkapan *event* (*listeners*) dan pengiriman pesan notifikasi ke *database*.
 
-![UML Class Diagram - Notification Module](UML%20Class%20Diagram_%20Notification%20Module.png)
+![UML Class Diagram - Notification Module](img/UML%20Class%20Diagram_%20Notification%20Module.png)
 
 ## 3. Sequence Diagrams
 Diagram ini melengkapi arsitektur struktural dengan menjabarkan alur perilaku (*behavioral*) dari interaksi sistem berdasarkan skenario *Event-Driven* yang spesifik.
@@ -240,9 +240,9 @@ Diagram ini melengkapi arsitektur struktural dengan menjabarkan alur perilaku (*
 ### Skenario Konfirmasi Pesanan
 Alur proses saat pembeli mengonfirmasi penerimaan barang, yang memicu perubahan status pesanan dan pengiriman *event* notifikasi ke penjual.
 
-![Sequence Diagram - Konfirmasi Pesanan](Sequence%20Diagram_%20Skenario%20Konfirmasi%20Pesanan.png)
+![Sequence Diagram - Konfirmasi Pesanan](img/Sequence%20Diagram_%20Skenario%20Konfirmasi%20Pesanan.png)
 
 ### Skenario Menangkap Event Lelang Selesai
 Alur eksekusi asinkron di mana sistem secara otomatis membuat entitas pesanan dan menyebarkan notifikasi ke pihak terkait tepat setelah lelang ditutup.
 
-![Sequence Diagram - Menangkap Event Lelang](Sequence%20Diagram%20(Skenario_%20Menangkap%20Event%20Lelang%20Selesai).png)
+![Sequence Diagram - Menangkap Event Lelang](img/Sequence%20Diagram%20(Skenario_%20Menangkap%20Event%20Lelang%20Selesai).png)
