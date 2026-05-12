@@ -97,6 +97,8 @@ Untuk penyimpanan data persisten, sistem ini menggunakan basis data PostgreSQL s
 
 
 
+
+
 ## 2. The future architecture of the group B11
 Setelah melakukan Risk Storming pada arsitektur BidMart saat ini, kami mengidentifikasi sejumlah risiko signifikan yang dapat mengancam ketersediaan, skalabilitas, dan integritas data apabila sistem mengalami peningkatan beban besar (misalnya ribuan auction berjalan bersamaan dengan puluhan ribu bidder aktif secara bersamaan).
 
@@ -246,3 +248,23 @@ Alur proses saat pembeli mengonfirmasi penerimaan barang, yang memicu perubahan 
 Alur eksekusi asinkron di mana sistem secara otomatis membuat entitas pesanan dan menyebarkan notifikasi ke pihak terkait tepat setelah lelang ditutup.
 
 ![Sequence Diagram - Menangkap Event Lelang](img/Sequence%20Diagram%20(Skenario_%20Menangkap%20Event%20Lelang%20Selesai).png)
+
+### Container Diagram Autentikasi & Manajemen Pengguna
+![Container Diagram user](<img/Container Diagram Autentikasi dan Manajemen Pengguna.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1NvWYGCrOJAlytABfcxlOuPqCsFCfL0iI/view?usp=sharing
+
+### Code Diagram
+#### 2FA
+![2FA](<img/Code Diagram 2FA.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1EJ_wxfaywynfzSRfTSQ_f5pmoO0-dBlL/view?usp=sharing
+#### Auth Service
+![Auth Service](<img/Code Diagram Auth Service.drawio.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1NEAjQURtmMyiCb5ZEcULDbZa_1ZVi8OP/view?usp=sharing
+#### Session Management
+![Session Management](<img/Code Diagram Session Management.drawio.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1ZcYVNuLfBnKHdu4FxXjpr5NNT-GcK68Y/view?usp=sharing
+#### User Profile Service
+![User Profile](<img/Code Diagram user Profile Service.drawio.png>)
+Tautan jika kurang jelas: https://drive.google.com/file/d/1ysNmiDcInMt4nBvUXqDZcalaIwkeJcCS/view?usp=sharing
+
+
