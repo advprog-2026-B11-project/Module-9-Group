@@ -269,3 +269,18 @@ Tautan jika kurang jelas: https://drive.google.com/file/d/1ZcYVNuLfBnKHdu4FxXjpr
 Tautan jika kurang jelas: https://drive.google.com/file/d/1ysNmiDcInMt4nBvUXqDZcalaIwkeJcCS/view?usp=sharing
 
 
+### 4.4 Dokuumentasi Arsitektur Modul Wallet
+#### Component Diagram - Wallet
+![Component Diagram Wallet](<img/Component Diagram - Wallet.png>)
+
+#### Code Diagram - Model
+![Code Diagram Model](<img/Code Diagram - Model.png>)
+
+#### Code Diagram - Service and Repository
+![Code Diagram Service Repo](<img/Code Diagram - Service and Repository.png>)
+
+#### Container Diagram - Wallet Critical Use Case
+![Component Diagram Use Case](<img/Component Diagram - CriticalUseCase.png>)
+
+#### Code Diagram - Transaction Flow
+![Code Diagram Flow](<img/Code Diagram - Wallet Transaction Flow.png>)
