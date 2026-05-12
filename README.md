@@ -213,57 +213,58 @@ BidRuleValidator menerapkan validasi dua fase yang terpisah secara sengaja:
 Domain events yang diterbitkan oleh modul Bidding menggunakan Spring ApplicationEventPublisher dengan @TransactionalEventListener(AFTER_COMMIT) agar events hanya diterbitkan setelah transaksi database berhasil di-commit, mencegah terjadinya notifikasi palsu jika transaksi rollback.
 
 
-
-# Dokumentasi Arsitektur Modul Order & Notification
+### 4.2 Dokumentasi Arsitektur Modul Order & Notification
 
 Repositori ini memuat dokumentasi arsitektur perangkat lunak untuk Modul **Order** dan **Notification** pada sistem BidMart. Visualisasi diagram di bawah ini mengacu pada standar C4 Model, yang difokuskan pada *Component Diagram* (Level 3) dan *Code Diagram* (Level 4), serta dilengkapi dengan diagram interaksi *behavioral*.
 
-## 1. Component Diagram
+#### 1. Component Diagram
 Diagram komponen ini menunjukkan struktur internal dari modul Order dan Notifikasi, serta bagaimana kedua modul ini berinteraksi satu sama lain secara *asynchronous* melalui *Event Bus* (Spring ApplicationEventPublisher).
 
 ![Component Diagram](img/Component%20Diagram%20(Order%20&%20Notification%20Modules).png)
 
-## 2. Code Diagrams (UML Class Diagrams)
+#### 2. Code Diagrams (UML Class Diagrams)
 *Code Diagram* ini merepresentasikan secara detail elemen statis dari kode sumber (kelas, antarmuka, atribut, dan metode) yang menyusun masing-masing modul sesuai komit terakhir.
 
-### Modul Order
+##### Modul Order
 Struktur kelas yang menangani entitas pesanan dan integrasi *event* dari sistem lelang.
 
 ![UML Class Diagram - Order Module](img/UML%20Class%20Diagram_%20Order%20Module.png)
 
-### Modul Notification
+##### Modul Notification
 Struktur kelas yang bertanggung jawab atas penangkapan *event* (*listeners*) dan pengiriman pesan notifikasi ke *database*.
 
 ![UML Class Diagram - Notification Module](img/UML%20Class%20Diagram_%20Notification%20Module.png)
 
-## 3. Sequence Diagrams
+#### 3. Sequence Diagrams
 Diagram ini melengkapi arsitektur struktural dengan menjabarkan alur perilaku (*behavioral*) dari interaksi sistem berdasarkan skenario *Event-Driven* yang spesifik.
 
-### Skenario Konfirmasi Pesanan
+##### Skenario Konfirmasi Pesanan
 Alur proses saat pembeli mengonfirmasi penerimaan barang, yang memicu perubahan status pesanan dan pengiriman *event* notifikasi ke penjual.
 
 ![Sequence Diagram - Konfirmasi Pesanan](img/Sequence%20Diagram_%20Skenario%20Konfirmasi%20Pesanan.png)
 
-### Skenario Menangkap Event Lelang Selesai
+##### Skenario Menangkap Event Lelang Selesai
 Alur eksekusi asinkron di mana sistem secara otomatis membuat entitas pesanan dan menyebarkan notifikasi ke pihak terkait tepat setelah lelang ditutup.
 
 ![Sequence Diagram - Menangkap Event Lelang](img/Sequence%20Diagram%20(Skenario_%20Menangkap%20Event%20Lelang%20Selesai).png)
 
-### Container Diagram Autentikasi & Manajemen Pengguna
+
+### 4.3 Dokumentasi Arsitektur Modul User
+#### Container Diagram Autentikasi & Manajemen Pengguna
 ![Container Diagram user](<img/Container Diagram Autentikasi dan Manajemen Pengguna.png>)
 Tautan jika kurang jelas: https://drive.google.com/file/d/1NvWYGCrOJAlytABfcxlOuPqCsFCfL0iI/view?usp=sharing
 
-### Code Diagram
-#### 2FA
+#### Code Diagram
+##### 2FA
 ![2FA](<img/Code Diagram 2FA.png>)
 Tautan jika kurang jelas: https://drive.google.com/file/d/1EJ_wxfaywynfzSRfTSQ_f5pmoO0-dBlL/view?usp=sharing
-#### Auth Service
+##### Auth Service
 ![Auth Service](<img/Code Diagram Auth Service.drawio.png>)
 Tautan jika kurang jelas: https://drive.google.com/file/d/1NEAjQURtmMyiCb5ZEcULDbZa_1ZVi8OP/view?usp=sharing
-#### Session Management
+##### Session Management
 ![Session Management](<img/Code Diagram Session Management.drawio.png>)
 Tautan jika kurang jelas: https://drive.google.com/file/d/1ZcYVNuLfBnKHdu4FxXjpr5NNT-GcK68Y/view?usp=sharing
-#### User Profile Service
+##### User Profile Service
 ![User Profile](<img/Code Diagram user Profile Service.drawio.png>)
 Tautan jika kurang jelas: https://drive.google.com/file/d/1ysNmiDcInMt4nBvUXqDZcalaIwkeJcCS/view?usp=sharing
 
